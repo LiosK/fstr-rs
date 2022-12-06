@@ -81,6 +81,9 @@ impl<const N: usize> FStr<N> {
     }
 
     /// Returns a mutable string slice of the content.
+    ///
+    /// This method is kept private because `deref_mut()`, `borrow_mut()`, and `as_mut()` provide
+    /// the same functionality.  #[inline]
     fn as_mut_str(&mut self) -> &mut str {
         debug_assert!(str::from_utf8(&self.inner).is_ok());
         // SAFETY: constructors must guarantee that `inner` is a valid UTF-8 sequence.
@@ -325,6 +328,7 @@ mod std_integration {
     use super::{FStr, LengthError};
 
     impl<const N: usize> From<FStr<N>> for String {
+        #[inline]
         fn from(value: FStr<N>) -> Self {
             value.as_str().to_owned()
         }
@@ -333,18 +337,21 @@ mod std_integration {
     impl<const N: usize> TryFrom<String> for FStr<N> {
         type Error = LengthError;
 
+        #[inline]
         fn try_from(value: String) -> Result<Self, Self::Error> {
             value.parse()
         }
     }
 
     impl<const N: usize> PartialEq<String> for FStr<N> {
+        #[inline]
         fn eq(&self, other: &String) -> bool {
             self.as_str().eq(other.as_str())
         }
     }
 
     impl<const N: usize> PartialEq<FStr<N>> for String {
+        #[inline]
         fn eq(&self, other: &FStr<N>) -> bool {
             other.eq(self)
         }
@@ -460,12 +467,14 @@ mod serde_integration {
     use serde::{de, Deserializer, Serializer};
 
     impl<const N: usize> serde::Serialize for FStr<N> {
+        #[inline]
         fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
             serializer.serialize_str(self.as_str())
         }
     }
 
     impl<'de, const N: usize> serde::Deserialize<'de> for FStr<N> {
+        #[inline]
         fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
             deserializer.deserialize_str(VisitorImpl)
         }
