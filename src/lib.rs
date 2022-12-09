@@ -170,6 +170,81 @@ impl<const N: usize> FStr<N> {
             })
         }
     }
+
+    /// Creates a value from an arbitrary string but truncates or stretches the original.
+    ///
+    /// This function appends the `filler` bytes to the end if the argument is shorter than the
+    /// type's length. The `filler` byte must be within the ASCII range. The argument is truncated,
+    /// if longer, at the closest character boundary to the type's length, with the `filler` bytes
+    /// appended where necessary.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `filler` is out of the ASCII range.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use fstr::FStr;
+    /// assert_eq!(FStr::<5>::from_str_lossy("seasons", b' '), "seaso");
+    /// assert_eq!(FStr::<7>::from_str_lossy("seasons", b' '), "seasons");
+    /// assert_eq!(FStr::<9>::from_str_lossy("seasons", b' '), "seasons  ");
+    ///
+    /// assert_eq!("😂🤪😱👻".len(), 16);
+    /// assert_eq!(FStr::<15>::from_str_lossy("😂🤪😱👻", b'.'), "😂🤪😱...");
+    /// ```
+    pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
+        assert!(filler.is_ascii(), "filler byte must be ASCII char");
+
+        let bs = s.as_bytes();
+        let len = if bs.len() <= N {
+            bs.len()
+        } else {
+            // locate last char boundary by skipping continuation bytes, which start with `10`
+            let mut i = N;
+            while (bs[i] >> 6) == 0b10 {
+                i -= 1;
+            }
+            i
+        };
+
+        let mut utf8_bytes = [filler; N];
+        let mut i = 0;
+        while i < len {
+            utf8_bytes[i] = bs[i];
+            i += 1;
+        }
+        // SAFETY: ok because `utf8_bytes` consist of the trailing ASCII fillers and either of the
+        // whole `s` or the part of `s` truncated at a character boundary
+        unsafe { Self::from_inner_unchecked(utf8_bytes) }
+    }
+
+    /// Returns a substring from the beginning to the specified terminator (if found) or to the end
+    /// (otherwise).
+    ///
+    /// This method extracts a string slice from the beginning to the first occurrence of the
+    /// `terminator` character. The resulting slice does not contain the `terminator` itself. This
+    /// method returns a slice containing the entire content if no `terminator` is found.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use fstr::FStr;
+    /// let x = FStr::from_inner(*b"quick brown fox\n")?;
+    /// assert_eq!(x.slice_to_terminator(' '), "quick");
+    /// assert_eq!(x.slice_to_terminator('w'), "quick bro");
+    /// assert_eq!(x.slice_to_terminator('\n'), "quick brown fox");
+    /// assert_eq!(x.slice_to_terminator('🦊'), "quick brown fox\n");
+    /// # assert_eq!(FStr::from_inner([])?.slice_to_terminator(' '), "");
+    /// # Ok::<(), std::str::Utf8Error>(())
+    /// ```
+    pub fn slice_to_terminator(&self, terminator: char) -> &str {
+        if N == 0 {
+            self
+        } else {
+            self.split_terminator(terminator).next().unwrap()
+        }
+    }
 }
 
 impl<const N: usize> ops::Deref for FStr<N> {
@@ -500,5 +575,8 @@ mod serde_integration {
 
         let x = FStr::from_inner(*b"helloworld").unwrap();
         serde_test::assert_tokens(&x, &[Token::Str("helloworld")]);
+
+        let y = "😂🤪😱👻".parse::<FStr<16>>().unwrap();
+        serde_test::assert_tokens(&y, &[Token::Str("😂🤪😱👻")]);
     }
 }
