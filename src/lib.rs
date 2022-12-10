@@ -72,6 +72,9 @@ pub struct FStr<const N: usize> {
 }
 
 impl<const N: usize> FStr<N> {
+    /// Length of the content in bytes.
+    pub const LENGTH: usize = N;
+
     /// Returns a string slice of the content.
     #[inline]
     pub const fn as_str(&self) -> &str {
