@@ -67,11 +67,15 @@ use std::{borrow, fmt, hash, ops, str};
 ///
 /// See [the crate-level documentation](crate) for details.
 #[derive(Copy, Clone, Eq, Ord, PartialOrd, Debug)]
+#[repr(transparent)]
 pub struct FStr<const N: usize> {
     inner: [u8; N],
 }
 
 impl<const N: usize> FStr<N> {
+    /// Length of the content in bytes.
+    pub const LENGTH: usize = N;
+
     /// Returns a string slice of the content.
     #[inline]
     pub const fn as_str(&self) -> &str {
@@ -83,7 +87,7 @@ impl<const N: usize> FStr<N> {
     /// Returns a mutable string slice of the content.
     ///
     /// This method is kept private because `deref_mut()`, `borrow_mut()`, and `as_mut()` provide
-    /// the same functionality.  #[inline]
+    /// the same functionality.
     fn as_mut_str(&mut self) -> &mut str {
         debug_assert!(str::from_utf8(&self.inner).is_ok());
         // SAFETY: constructors must guarantee that `inner` is a valid UTF-8 sequence.
@@ -238,6 +242,7 @@ impl<const N: usize> FStr<N> {
     /// # assert_eq!(FStr::from_inner([])?.slice_to_terminator(' '), "");
     /// # Ok::<(), std::str::Utf8Error>(())
     /// ```
+    #[inline]
     pub fn slice_to_terminator(&self, terminator: char) -> &str {
         if N == 0 {
             self
