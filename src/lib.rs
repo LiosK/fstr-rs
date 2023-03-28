@@ -63,7 +63,7 @@
 use core as std;
 use std::{borrow, fmt, hash, ops, str};
 
-/// Stack-allocated fixed-length string type.
+/// A stack-allocated fixed-length string type.
 ///
 /// See [the crate-level documentation](crate) for details.
 #[derive(Copy, Clone, Eq, Ord, PartialOrd, Debug)]
@@ -73,7 +73,7 @@ pub struct FStr<const N: usize> {
 }
 
 impl<const N: usize> FStr<N> {
-    /// Length of the content in bytes.
+    /// The length of the content in bytes.
     pub const LENGTH: usize = N;
 
     /// Returns a string slice of the content.
@@ -152,14 +152,14 @@ impl<const N: usize> FStr<N> {
     /// ```
     #[inline]
     pub const fn from_str_unwrap(s: &str) -> Self {
-        match Self::from_str_const(s) {
+        match Self::const_from_str(s) {
             Ok(t) => t,
             _ => panic!("invalid byte length"),
         }
     }
 
     /// Creates a value from a string slice in the `const` context.
-    const fn from_str_const(s: &str) -> Result<Self, LengthError> {
+    const fn const_from_str(s: &str) -> Result<Self, LengthError> {
         let s = s.as_bytes();
         if s.len() == N {
             let ptr = s.as_ptr() as *const [u8; N];
@@ -175,7 +175,7 @@ impl<const N: usize> FStr<N> {
         }
     }
 
-    /// Creates a value from an arbitrary string but truncates or stretches the original.
+    /// Creates a value from an arbitrary string but truncates or stretches the content.
     ///
     /// This function appends the `filler` bytes to the end if the argument is shorter than the
     /// type's length. The `filler` byte must be within the ASCII range. The argument is truncated,
@@ -380,11 +380,11 @@ impl<const N: usize> str::FromStr for FStr<N> {
 
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_str_const(s)
+        Self::const_from_str(s)
     }
 }
 
-/// Error converting to [`FStr<N>`] from a byte slice having a different length than `N`.
+/// An error converting to [`FStr<N>`] from a byte slice having a different length than `N`.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub struct LengthError {
     actual: usize,
