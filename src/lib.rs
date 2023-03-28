@@ -63,7 +63,7 @@
 use core as std;
 use std::{borrow, fmt, hash, ops, str};
 
-/// Stack-allocated fixed-length string type.
+/// A stack-allocated fixed-length string type.
 ///
 /// See [the crate-level documentation](crate) for details.
 #[derive(Copy, Clone, Eq, Ord, PartialOrd, Debug)]
@@ -73,7 +73,7 @@ pub struct FStr<const N: usize> {
 }
 
 impl<const N: usize> FStr<N> {
-    /// Length of the content in bytes.
+    /// The length of the content in bytes.
     pub const LENGTH: usize = N;
 
     /// Returns a string slice of the content.
@@ -152,14 +152,14 @@ impl<const N: usize> FStr<N> {
     /// ```
     #[inline]
     pub const fn from_str_unwrap(s: &str) -> Self {
-        match Self::from_str_const(s) {
+        match Self::const_from_str(s) {
             Ok(t) => t,
             _ => panic!("invalid byte length"),
         }
     }
 
     /// Creates a value from a string slice in the `const` context.
-    const fn from_str_const(s: &str) -> Result<Self, LengthError> {
+    const fn const_from_str(s: &str) -> Result<Self, LengthError> {
         let s = s.as_bytes();
         if s.len() == N {
             let ptr = s.as_ptr() as *const [u8; N];
@@ -175,7 +175,7 @@ impl<const N: usize> FStr<N> {
         }
     }
 
-    /// Creates a value from an arbitrary string but truncates or stretches the original.
+    /// Creates a value from an arbitrary string but truncates or stretches the content.
     ///
     /// This function appends the `filler` bytes to the end if the argument is shorter than the
     /// type's length. The `filler` byte must be within the ASCII range. The argument is truncated,
@@ -248,6 +248,47 @@ impl<const N: usize> FStr<N> {
             self
         } else {
             self.split_terminator(terminator).next().unwrap()
+        }
+    }
+
+    /// Returns a writer that writes `&str` into `self` through the [`fmt::Write`] trait.
+    ///
+    /// The writer starts at the beginning of `self` and overwrites the existing content as
+    /// `write_str` is called. This writer fails if too many bytes are written. It also fails when
+    /// a `write_str` call would result in an invalid UTF-8 sequence by destroying an existing
+    /// multi-byte character. Due to the latter limitation, this writer is not very useful unless
+    /// `self` is filled with ASCII bytes only.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use fstr::FStr;
+    /// use core::fmt::Write as _;
+    ///
+    /// let mut a = FStr::from_inner([b'.'; 12])?;
+    /// assert!(write!(a.writer(), "0x{:06x}!", 0x42).is_ok());
+    /// assert_eq!(a, "0x000042!...");
+    ///
+    /// let mut b = FStr::from_inner([b'.'; 12])?;
+    /// assert!(write!(b.writer(), "{:016}", 1).is_err()); // buffer overflow
+    ///
+    /// let mut c = FStr::from_inner([b'.'; 12])?;
+    /// let mut w = c.writer();
+    /// assert!(write!(w, "🥺").is_ok());
+    /// assert!(write!(w, "++").is_ok());
+    /// drop(w);
+    /// assert_eq!(c, "🥺++......");
+    ///
+    /// assert!(c.writer().write_str("++").is_err()); // invalid UTF-8 sequence
+    /// assert_eq!(c, "🥺++......");
+    /// assert!(c.writer().write_str("----").is_ok());
+    /// assert_eq!(c, "----++......");
+    /// # Ok::<(), std::str::Utf8Error>(())
+    /// ```
+    pub fn writer(&mut self) -> impl fmt::Write + '_ {
+        FStrWriter {
+            cursor: 0,
+            buffer: self,
         }
     }
 }
@@ -380,11 +421,34 @@ impl<const N: usize> str::FromStr for FStr<N> {
 
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_str_const(s)
+        Self::const_from_str(s)
     }
 }
 
-/// Error converting to [`FStr<N>`] from a byte slice having a different length than `N`.
+/// A writer structure that writes string slices into `FStr<N>`.
+#[derive(Debug)]
+struct FStrWriter<'a, const N: usize> {
+    cursor: usize,
+    buffer: &'a mut FStr<N>,
+}
+
+impl<'a, const N: usize> fmt::Write for FStrWriter<'a, N> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        let end = self.cursor + s.len();
+        if end == N || (end < N && self.buffer.is_char_boundary(end)) {
+            // SAFETY: ok because it copies the entire `s` to `buffer` and the next byte right
+            // after those copied, if any, is a character boundary
+            self.buffer.inner[self.cursor..end].copy_from_slice(s.as_bytes());
+            debug_assert!(str::from_utf8(&self.buffer.inner).is_ok());
+            self.cursor = end;
+            Ok(())
+        } else {
+            Err(fmt::Error)
+        }
+    }
+}
+
+/// An error converting to [`FStr<N>`] from a byte slice having a different length than `N`.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub struct LengthError {
     actual: usize,
@@ -512,6 +576,49 @@ mod tests {
         assert!("😂".parse::<FStr<6>>().is_err());
         assert!("😂".parse::<FStr<4>>().is_ok());
         assert_eq!("😂".parse::<FStr<4>>().unwrap(), "😂");
+    }
+
+    /// Tests `fmt::Write` implementation.
+    #[test]
+    fn write_str() {
+        use core::fmt::Write as _;
+
+        let mut a = FStr::from_inner([b' '; 5]).unwrap();
+        assert!(write!(a.writer(), "vanilla").is_err());
+        assert_eq!(a, "     ");
+
+        let mut b = FStr::from_inner([b' '; 7]).unwrap();
+        assert!(write!(b.writer(), "vanilla").is_ok());
+        assert_eq!(b, "vanilla");
+
+        let mut c = FStr::from_inner([b' '; 9]).unwrap();
+        assert!(write!(c.writer(), "vanilla").is_ok());
+        assert_eq!(c, "vanilla  ");
+
+        let mut d = FStr::from_inner([b'.'; 16]).unwrap();
+        assert!(write!(d.writer(), "😂🤪😱👻").is_ok());
+        assert_eq!(d, "😂🤪😱👻");
+        assert!(write!(d.writer(), "🔥").is_ok());
+        assert_eq!(d, "🔥🤪😱👻");
+        assert!(write!(d.writer(), "🥺😭").is_ok());
+        assert_eq!(d, "🥺😭😱👻");
+        assert!(write!(d.writer(), ".").is_err());
+        assert_eq!(d, "🥺😭😱👻");
+
+        let mut e = FStr::from_inner([b' '; 12]).unwrap();
+        assert!(write!(e.writer(), "{:04}/{:04}", 42, 334).is_ok());
+        assert_eq!(e, "0042/0334   ");
+
+        let mut w = e.writer();
+        assert!(write!(w, "{:02x}", 123).is_ok());
+        assert!(write!(w, "-{:04x}", 345).is_ok());
+        assert!(write!(w, "-{:04x}", 567).is_ok());
+        assert!(write!(w, "-{:04x}", 789).is_err());
+        drop(w);
+        assert_eq!(e, "7b-0159-0237");
+
+        assert!(write!(FStr::<0>::default().writer(), "").is_ok());
+        assert!(write!(FStr::<0>::default().writer(), " ").is_err());
     }
 
     /// Tests `Hash` and `Borrow` implementations using `HashSet`.
