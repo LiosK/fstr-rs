@@ -65,6 +65,8 @@ use std::{borrow, fmt, hash, ops, str};
 
 /// A stack-allocated fixed-length string type.
 ///
+/// This type has exactly the same size and binary representation as the inner `[u8; N]` buffer.
+///
 /// See [the crate-level documentation](crate) for details.
 #[derive(Copy, Clone, Eq, Ord, PartialOrd, Debug)]
 #[repr(transparent)]
