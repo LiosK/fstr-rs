@@ -302,6 +302,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(c, "----++......");
     /// # Ok::<(), std::str::Utf8Error>(())
     /// ```
+    #[inline]
     pub fn writer(&mut self) -> impl fmt::Write + '_ {
         self.writer_at(0)
     }
@@ -326,6 +327,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(x, "..0x000042!.");
     /// # Ok::<(), std::str::Utf8Error>(())
     /// ```
+    #[inline]
     pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + '_ {
         assert!(self.is_char_boundary(index), "`index` not at char boundary");
         FStrWriter {
@@ -475,6 +477,7 @@ struct FStrWriter<'a, const N: usize> {
 }
 
 impl<'a, const N: usize> fmt::Write for FStrWriter<'a, N> {
+    #[inline]
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let end = self.cursor + s.len();
         if self.buffer.is_char_boundary(end) {
