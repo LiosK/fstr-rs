@@ -242,6 +242,21 @@ impl<const N: usize> FStr<N> {
     /// # assert_eq!(FStr::from_inner([])?.slice_to_terminator(' '), "");
     /// # Ok::<(), std::str::Utf8Error>(())
     /// ```
+    ///
+    /// This method helps utilize `self` as a C-style NUL-terminated string.
+    ///
+    /// ```rust
+    /// # use fstr::FStr;
+    /// let mut buffer = FStr::<20>::from_str_lossy("haste", b'\0');
+    /// assert_eq!(buffer, "haste\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+    ///
+    /// let c_str = buffer.slice_to_terminator('\0');
+    /// assert_eq!(c_str, "haste");
+    ///
+    /// use core::fmt::Write as _;
+    /// assert!(write!(buffer.writer_at(c_str.len()), " makes waste").is_ok());
+    /// assert_eq!(buffer.slice_to_terminator('\0'), "haste makes waste");
+    /// ```
     #[inline]
     pub fn slice_to_terminator(&self, terminator: char) -> &str {
         if N == 0 {
@@ -254,8 +269,8 @@ impl<const N: usize> FStr<N> {
     /// Returns a writer that writes `&str` into `self` through the [`fmt::Write`] trait.
     ///
     /// The writer starts at the beginning of `self` and overwrites the existing content as
-    /// `write_str` is called. This writer fails if too many bytes are written. It also fails when
-    /// a `write_str` call would result in an invalid UTF-8 sequence by destroying an existing
+    /// `write_str` is called. This writer fails if too many bytes would be written. It also fails
+    /// when a `write_str` call would result in an invalid UTF-8 sequence by destroying an existing
     /// multi-byte character. Due to the latter limitation, this writer is not very useful unless
     /// `self` is filled with ASCII bytes only.
     ///
@@ -286,8 +301,33 @@ impl<const N: usize> FStr<N> {
     /// # Ok::<(), std::str::Utf8Error>(())
     /// ```
     pub fn writer(&mut self) -> impl fmt::Write + '_ {
+        self.writer_at(0)
+    }
+
+    /// Returns a writer that starts at an `index`.
+    ///
+    /// This method creates the same writer as does [`FStr::writer`] but allows it to start at an
+    /// arbitrary position.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `index` does not point to a character boundary or is past the end of `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use fstr::FStr;
+    /// use core::fmt::Write as _;
+    ///
+    /// let mut x = FStr::from_inner([b'.'; 12])?;
+    /// assert!(write!(x.writer_at(2), "0x{:06x}!", 0x42).is_ok());
+    /// assert_eq!(x, "..0x000042!.");
+    /// # Ok::<(), std::str::Utf8Error>(())
+    /// ```
+    pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + '_ {
+        assert!(self.is_char_boundary(index), "`index` not at char boundary");
         FStrWriter {
-            cursor: 0,
+            cursor: index,
             buffer: self,
         }
     }
@@ -435,7 +475,7 @@ struct FStrWriter<'a, const N: usize> {
 impl<'a, const N: usize> fmt::Write for FStrWriter<'a, N> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let end = self.cursor + s.len();
-        if end == N || (end < N && self.buffer.is_char_boundary(end)) {
+        if self.buffer.is_char_boundary(end) {
             // SAFETY: ok because it copies the entire `s` to `buffer` and the next byte right
             // after those copied, if any, is a character boundary
             self.buffer.inner[self.cursor..end].copy_from_slice(s.as_bytes());
@@ -619,6 +659,18 @@ mod tests {
 
         assert!(write!(FStr::<0>::default().writer(), "").is_ok());
         assert!(write!(FStr::<0>::default().writer(), " ").is_err());
+    }
+
+    #[test]
+    #[should_panic]
+    fn writer_at_index_middle_of_a_char() {
+        FStr::<8>::from_str_lossy("🙏", b' ').writer_at(1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn writer_at_index_beyond_end() {
+        FStr::<5>::default().writer_at(7);
     }
 
     /// Tests `Hash` and `Borrow` implementations using `HashSet`.
