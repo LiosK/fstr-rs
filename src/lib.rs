@@ -225,6 +225,26 @@ impl<const N: usize> FStr<N> {
         unsafe { Self::from_inner_unchecked(utf8_bytes) }
     }
 
+    /// Creates a value by repeating an ASCII byte `N` times.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the argument is out of the ASCII range.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use fstr::FStr;
+    /// assert_eq!(FStr::<3>::repeat(b'.'), "...");
+    /// assert_eq!(FStr::<5>::repeat(b'-'), "-----");
+    /// # assert_eq!(FStr::<0>::repeat(b'\0'), "");
+    /// ```
+    pub const fn repeat(filler: u8) -> Self {
+        assert!(filler.is_ascii(), "filler byte must be ASCII char");
+        // SAFETY: ok because the array consists of ASCII bytes only
+        unsafe { Self::from_inner_unchecked([filler; N]) }
+    }
+
     /// Returns a substring from the beginning to the specified terminator (if found) or to the end
     /// (otherwise).
     ///
@@ -256,8 +276,9 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(c_str, "haste");
     ///
     /// use core::fmt::Write as _;
-    /// assert!(write!(buffer.writer_at(c_str.len()), " makes waste").is_ok());
+    /// write!(buffer.writer_at(c_str.len()), " makes waste")?;
     /// assert_eq!(buffer.slice_to_terminator('\0'), "haste makes waste");
+    /// # Ok::<(), core::fmt::Error>(())
     /// ```
     #[inline]
     pub fn slice_to_terminator(&self, terminator: char) -> &str {
@@ -284,25 +305,25 @@ impl<const N: usize> FStr<N> {
     /// # use fstr::FStr;
     /// use core::fmt::Write as _;
     ///
-    /// let mut a = FStr::from_inner([b'.'; 12])?;
-    /// assert!(write!(a.writer(), "0x{:06x}!", 0x42).is_ok());
+    /// let mut a = FStr::<12>::repeat(b'.');
+    /// write!(a.writer(), "0x{:06x}!", 0x42)?;
     /// assert_eq!(a, "0x000042!...");
     ///
-    /// let mut b = FStr::from_inner([b'.'; 12])?;
+    /// let mut b = FStr::<12>::repeat(b'.');
     /// assert!(write!(b.writer(), "{:016}", 1).is_err()); // buffer overflow
     ///
-    /// let mut c = FStr::from_inner([b'.'; 12])?;
+    /// let mut c = FStr::<12>::repeat(b'.');
     /// let mut w = c.writer();
-    /// assert!(write!(w, "🥺").is_ok());
-    /// assert!(write!(w, "++").is_ok());
+    /// write!(w, "🥺")?;
+    /// write!(w, "++")?;
     /// drop(w);
     /// assert_eq!(c, "🥺++......");
     ///
     /// assert!(c.writer().write_str("++").is_err()); // invalid UTF-8 sequence
     /// assert_eq!(c, "🥺++......");
-    /// assert!(c.writer().write_str("----").is_ok());
+    /// c.writer().write_str("----")?;
     /// assert_eq!(c, "----++......");
-    /// # Ok::<(), std::str::Utf8Error>(())
+    /// # Ok::<(), core::fmt::Error>(())
     /// ```
     #[inline]
     pub fn writer(&mut self) -> impl fmt::Write + '_ {
@@ -324,10 +345,10 @@ impl<const N: usize> FStr<N> {
     /// # use fstr::FStr;
     /// use core::fmt::Write as _;
     ///
-    /// let mut x = FStr::from_inner([b'.'; 12])?;
-    /// assert!(write!(x.writer_at(2), "0x{:06x}!", 0x42).is_ok());
+    /// let mut x = FStr::<12>::repeat(b'.');
+    /// write!(x.writer_at(2), "0x{:06x}!", 0x42)?;
     /// assert_eq!(x, "..0x000042!.");
-    /// # Ok::<(), std::str::Utf8Error>(())
+    /// # Ok::<(), core::fmt::Error>(())
     /// ```
     #[inline]
     pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + '_ {
@@ -367,7 +388,7 @@ impl<const N: usize> Default for FStr<N> {
     /// ```
     #[inline]
     fn default() -> Self {
-        unsafe { Self::from_inner_unchecked([b' '; N]) }
+        Self::repeat(b' ')
     }
 }
 
@@ -630,19 +651,19 @@ mod tests {
     fn write_str() {
         use core::fmt::Write as _;
 
-        let mut a = FStr::from_inner([b' '; 5]).unwrap();
+        let mut a = FStr::<5>::repeat(b' ');
         assert!(write!(a.writer(), "vanilla").is_err());
         assert_eq!(a, "     ");
 
-        let mut b = FStr::from_inner([b' '; 7]).unwrap();
+        let mut b = FStr::<7>::repeat(b' ');
         assert!(write!(b.writer(), "vanilla").is_ok());
         assert_eq!(b, "vanilla");
 
-        let mut c = FStr::from_inner([b' '; 9]).unwrap();
+        let mut c = FStr::<9>::repeat(b' ');
         assert!(write!(c.writer(), "vanilla").is_ok());
         assert_eq!(c, "vanilla  ");
 
-        let mut d = FStr::from_inner([b'.'; 16]).unwrap();
+        let mut d = FStr::<16>::repeat(b'.');
         assert!(write!(d.writer(), "😂🤪😱👻").is_ok());
         assert_eq!(d, "😂🤪😱👻");
         assert!(write!(d.writer(), "🔥").is_ok());
@@ -652,7 +673,7 @@ mod tests {
         assert!(write!(d.writer(), ".").is_err());
         assert_eq!(d, "🥺😭😱👻");
 
-        let mut e = FStr::from_inner([b' '; 12]).unwrap();
+        let mut e = FStr::<12>::repeat(b' ');
         assert!(write!(e.writer(), "{:04}/{:04}", 42, 334).is_ok());
         assert_eq!(e, "0042/0334   ");
 
