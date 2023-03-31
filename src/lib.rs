@@ -738,6 +738,19 @@ mod serde_integration {
         fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
             value.parse().map_err(de::Error::custom)
         }
+
+        fn visit_bytes<E: de::Error>(self, value: &[u8]) -> Result<Self::Value, E> {
+            if let Ok(inner) = value.try_into() {
+                if let Ok(t) = FStr::from_inner(inner) {
+                    return Ok(t);
+                }
+            }
+
+            Err(de::Error::invalid_value(
+                de::Unexpected::Bytes(value),
+                &self,
+            ))
+        }
     }
 
     #[test]
@@ -746,8 +759,28 @@ mod serde_integration {
 
         let x = FStr::from_inner(*b"helloworld").unwrap();
         serde_test::assert_tokens(&x, &[Token::Str("helloworld")]);
+        serde_test::assert_de_tokens(&x, &[Token::Bytes(b"helloworld")]);
 
         let y = "😂🤪😱👻".parse::<FStr<16>>().unwrap();
         serde_test::assert_tokens(&y, &[Token::Str("😂🤪😱👻")]);
+        serde_test::assert_de_tokens(
+            &y,
+            &[Token::Bytes(&[
+                240, 159, 152, 130, 240, 159, 164, 170, 240, 159, 152, 177, 240, 159, 145, 187,
+            ])],
+        );
+
+        serde_test::assert_de_tokens_error::<FStr<5>>(
+            &[Token::Str("helloworld")],
+            "invalid byte length of 10 (expected: 5)",
+        );
+        serde_test::assert_de_tokens_error::<FStr<5>>(
+            &[Token::Bytes(b"helloworld")],
+            "invalid value: byte array, expected a fixed-length string",
+        );
+        serde_test::assert_de_tokens_error::<FStr<5>>(
+            &[Token::Bytes(&[b'h', b'e', b'l', b'l', 240])],
+            "invalid value: byte array, expected a fixed-length string",
+        );
     }
 }
