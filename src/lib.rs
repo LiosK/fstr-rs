@@ -68,7 +68,7 @@ use std::{borrow, fmt, hash, ops, str};
 /// This type has exactly the same size and binary representation as the inner `[u8; N]` buffer.
 ///
 /// See [the crate-level documentation](crate) for details.
-#[derive(Copy, Clone, Eq, Ord, PartialOrd, Debug)]
+#[derive(Copy, Clone, Eq, Ord, PartialOrd)]
 #[repr(transparent)]
 pub struct FStr<const N: usize> {
     inner: [u8; N],
@@ -392,10 +392,18 @@ impl<const N: usize> Default for FStr<N> {
     }
 }
 
+impl<const N: usize> fmt::Debug for FStr<N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FStr")
+            .field("inner", &self.as_str())
+            .finish()
+    }
+}
+
 impl<const N: usize> fmt::Display for FStr<N> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
+        fmt::Display::fmt(self.as_str(), f)
     }
 }
 
@@ -416,7 +424,7 @@ impl<const N: usize> PartialEq<str> for FStr<N> {
 impl<const N: usize> PartialEq<FStr<N>> for str {
     #[inline]
     fn eq(&self, other: &FStr<N>) -> bool {
-        other.eq(self)
+        self.eq(other.as_str())
     }
 }
 
@@ -430,7 +438,7 @@ impl<const N: usize> PartialEq<&str> for FStr<N> {
 impl<const N: usize> PartialEq<FStr<N>> for &str {
     #[inline]
     fn eq(&self, other: &FStr<N>) -> bool {
-        other.eq(self)
+        self.eq(&other.as_str())
     }
 }
 
@@ -558,14 +566,14 @@ mod std_integration {
     impl<const N: usize> PartialEq<String> for FStr<N> {
         #[inline]
         fn eq(&self, other: &String) -> bool {
-            self.as_str().eq(other.as_str())
+            self.as_str().eq(other)
         }
     }
 
     impl<const N: usize> PartialEq<FStr<N>> for String {
         #[inline]
         fn eq(&self, other: &FStr<N>) -> bool {
-            other.eq(self)
+            self.eq(other.as_str())
         }
     }
 
@@ -725,6 +733,30 @@ mod tests {
         assert!(!s.contains(&FStr::from_inner(*b"system").unwrap()));
         assert!(!s.contains(&FStr::from_inner(*b"unless").unwrap()));
         assert!(!s.contains(&FStr::from_inner(*b"yellow").unwrap()));
+    }
+
+    /// Tests `fmt::Display` implementation.
+    #[cfg(feature = "std")]
+    #[test]
+    fn display_fmt() {
+        let a = FStr::from_inner(*b"you").unwrap();
+
+        assert_eq!(format!("{}", a), "you");
+        assert_eq!(format!("{:5}", a), "you  ");
+        assert_eq!(format!("{:<6}", a), "you   ");
+        assert_eq!(format!("{:-<7}", a), "you----");
+        assert_eq!(format!("{:>8}", a), "     you");
+        assert_eq!(format!("{:^9}", a), "   you   ");
+
+        let b = FStr::from_inner(*b"junior").unwrap();
+
+        assert_eq!(format!("{}", b), "junior");
+        assert_eq!(format!("{:.3}", b), "jun");
+        assert_eq!(format!("{:5.3}", b), "jun  ");
+        assert_eq!(format!("{:<6.3}", b), "jun   ");
+        assert_eq!(format!("{:-<7.3}", b), "jun----");
+        assert_eq!(format!("{:>8.3}", b), "     jun");
+        assert_eq!(format!("{:^9.3}", b), "   jun   ");
     }
 }
 
