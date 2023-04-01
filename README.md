@@ -27,10 +27,11 @@ const K: FStr<8> = FStr::from_str_unwrap("constant");
 assert_eq!(K, "constant");
 ```
 
-Unlike `String`, this type manages fixed-length strings only. The type parameter takes the
-exact length (in bytes) of a concrete type, and the concrete type only holds the string values
-of that size. Accordingly, this type is useful only when the length is considered an integral
-part of a string type.
+Unlike `String` and [`arrayvec::ArrayString`], this type manages fixed-length strings only.
+The type parameter takes the exact length (in bytes) of a concrete type, and the concrete type
+only holds the string values of that size.
+
+[`arrayvec::ArrayString`]: https://docs.rs/arrayvec/latest/arrayvec/struct.ArrayString.html
 
 ```rust
 let s = "Lorem Ipsum ✨";
@@ -48,6 +49,21 @@ let y: FStr<12> = FStr::from_str_unwrap("helloworld  ");
 if x != y {
     unreachable!();
 }
+```
+
+Variable-length string operations are partially supported by utilizing a C-style NUL-terminated
+buffer and some helper methods.
+
+```rust
+let mut buffer = FStr::<20>::from_str_lossy("haste", b'\0');
+assert_eq!(buffer, "haste\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+
+let c_str = buffer.slice_to_terminator('\0');
+assert_eq!(c_str, "haste");
+
+use core::fmt::Write as _;
+write!(buffer.writer_at(c_str.len()), " makes waste")?;
+assert_eq!(buffer.slice_to_terminator('\0'), "haste makes waste");
 ```
 
 ## Crate features
