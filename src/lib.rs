@@ -25,10 +25,11 @@
 //! # Ok::<(), std::str::Utf8Error>(())
 //! ```
 //!
-//! Unlike [`String`], this type manages fixed-length strings only. The type parameter takes the
-//! exact length (in bytes) of a concrete type, and the concrete type only holds the string values
-//! of that size. Accordingly, this type is useful only when the length is considered an integral
-//! part of a string type.
+//! Unlike [`String`] and [`arrayvec::ArrayString`], this type manages fixed-length strings only.
+//! The type parameter takes the exact length (in bytes) of a concrete type, and the concrete type
+//! only holds the string values of that size.
+//!
+//! [`arrayvec::ArrayString`]: https://docs.rs/arrayvec/latest/arrayvec/struct.ArrayString.html
 //!
 //! ```rust
 //! # use fstr::FStr;
@@ -48,6 +49,23 @@
 //! if x != y {
 //!     unreachable!();
 //! }
+//! ```
+//!
+//! Variable-length string operations are partially supported by utilizing a C-style NUL-terminated
+//! buffer and some helper methods.
+//!
+//! ```rust
+//! # use fstr::FStr;
+//! let mut buffer = FStr::<20>::from_str_lossy("haste", b'\0');
+//! assert_eq!(buffer, "haste\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+//!
+//! let c_str = buffer.slice_to_terminator('\0');
+//! assert_eq!(c_str, "haste");
+//!
+//! use core::fmt::Write as _;
+//! write!(buffer.writer_at(c_str.len()), " makes waste")?;
+//! assert_eq!(buffer.slice_to_terminator('\0'), "haste makes waste");
+//! # Ok::<(), core::fmt::Error>(())
 //! ```
 //!
 //! ## Crate features
@@ -263,22 +281,6 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(x.slice_to_terminator('🦊'), "quick brown fox\n");
     /// # assert_eq!(FStr::from_inner([])?.slice_to_terminator(' '), "");
     /// # Ok::<(), std::str::Utf8Error>(())
-    /// ```
-    ///
-    /// This method helps utilize `self` as a C-style NUL-terminated string.
-    ///
-    /// ```rust
-    /// # use fstr::FStr;
-    /// let mut buffer = FStr::<20>::from_str_lossy("haste", b'\0');
-    /// assert_eq!(buffer, "haste\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
-    ///
-    /// let c_str = buffer.slice_to_terminator('\0');
-    /// assert_eq!(c_str, "haste");
-    ///
-    /// use core::fmt::Write as _;
-    /// write!(buffer.writer_at(c_str.len()), " makes waste")?;
-    /// assert_eq!(buffer.slice_to_terminator('\0'), "haste makes waste");
-    /// # Ok::<(), core::fmt::Error>(())
     /// ```
     #[inline]
     pub fn slice_to_terminator(&self, terminator: char) -> &str {
