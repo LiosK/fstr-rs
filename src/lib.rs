@@ -220,13 +220,13 @@ impl<const N: usize> FStr<N> {
     pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must be ASCII char");
 
-        let bs = s.as_bytes();
-        let len = if bs.len() <= N {
-            bs.len()
+        let s = s.as_bytes();
+        let len = if s.len() <= N {
+            s.len()
         } else {
             // locate last char boundary by skipping continuation bytes, which start with `10`
             let mut i = N;
-            while (bs[i] >> 6) == 0b10 {
+            while (s[i] as i8) < -64 {
                 i -= 1;
             }
             i
@@ -235,7 +235,7 @@ impl<const N: usize> FStr<N> {
         let mut utf8_bytes = [filler; N];
         let mut i = 0;
         while i < len {
-            utf8_bytes[i] = bs[i];
+            utf8_bytes[i] = s[i];
             i += 1;
         }
         // SAFETY: ok because `utf8_bytes` consist of the trailing ASCII fillers and either of the
