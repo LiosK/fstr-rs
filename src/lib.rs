@@ -326,7 +326,7 @@ impl<const N: usize> FStr<N> {
     /// ```
     #[inline]
     pub fn writer(&mut self) -> impl fmt::Write + '_ {
-        self.writer_at(0)
+        Cursor::new_at(self.as_mut_str(), 0)
     }
 
     /// Returns a writer that starts at an `index`.
@@ -351,11 +351,7 @@ impl<const N: usize> FStr<N> {
     /// ```
     #[inline]
     pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + '_ {
-        assert!(self.is_char_boundary(index), "`index` not at char boundary");
-        FStrWriter {
-            cursor: index,
-            buffer: self,
-        }
+        Cursor::new_at(self.as_mut_str(), index)
     }
 }
 
@@ -499,23 +495,34 @@ impl<const N: usize> str::FromStr for FStr<N> {
     }
 }
 
-/// A writer structure that writes string slices into `FStr<N>`.
+/// A cursor structure that writes string slices into a fixed-length `&mut str`.
 #[derive(Debug)]
-struct FStrWriter<'a, const N: usize> {
-    cursor: usize,
-    buffer: &'a mut FStr<N>,
+struct Cursor<T> {
+    inner: T,
+    pos: usize,
 }
 
-impl<'a, const N: usize> fmt::Write for FStrWriter<'a, N> {
+impl<T: AsRef<str>> Cursor<T> {
+    #[inline]
+    fn new_at(inner: T, index: usize) -> Self {
+        assert!(
+            inner.as_ref().is_char_boundary(index),
+            "`index` not at char boundary"
+        );
+        Self { inner, pos: index }
+    }
+}
+
+impl fmt::Write for Cursor<&mut str> {
     #[inline]
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        let end = self.cursor + s.len();
-        if self.buffer.is_char_boundary(end) {
-            // SAFETY: ok because it copies the entire `s` to `buffer` and the next byte right
-            // after those copied, if any, is a character boundary
-            self.buffer.inner[self.cursor..end].copy_from_slice(s.as_bytes());
-            debug_assert!(str::from_utf8(&self.buffer.inner).is_ok());
-            self.cursor = end;
+        let end = self.pos + s.len();
+        if self.inner.is_char_boundary(end) {
+            // SAFETY: ok because it copies the entire `s` to the buffer and `self.pos` and `end`
+            // are managed or checked to be at a character boundary
+            unsafe { self.inner.as_bytes_mut()[self.pos..end].copy_from_slice(s.as_bytes()) };
+            debug_assert!(str::from_utf8(self.inner.as_bytes()).is_ok());
+            self.pos = end;
             Ok(())
         } else {
             Err(fmt::Error)
