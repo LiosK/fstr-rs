@@ -1,4 +1,4 @@
-# FStr: stack-allocated fixed-length string type
+# FStr: a stack-allocated fixed-length string type
 
 [![Crates.io](https://img.shields.io/crates/v/fstr)](https://crates.io/crates/fstr)
 [![License](https://img.shields.io/crates/l/fstr)](https://github.com/LiosK/fstr-rs/blob/main/LICENSE)
@@ -27,9 +27,10 @@ const K: FStr<8> = FStr::from_str_unwrap("constant");
 assert_eq!(K, "constant");
 ```
 
-Unlike `String` and [`arrayvec::ArrayString`], this type manages fixed-length strings only.
-The type parameter takes the exact length (in bytes) of a concrete type, and the concrete type
-only holds the string values of that size.
+Unlike `String` and [`arrayvec::ArrayString`], this type has the same binary representation
+as the underlying `[u8; N]` and manages fixed-length strings only. The type parameter takes the
+exact length (in bytes) of a concrete type, and the concrete type only holds the string values
+of that size.
 
 [`arrayvec::ArrayString`]: https://docs.rs/arrayvec/latest/arrayvec/struct.ArrayString.html
 
