@@ -284,12 +284,9 @@ impl<const N: usize> FStr<N> {
     /// ```
     #[inline]
     pub fn slice_to_terminator(&self, terminator: char) -> &str {
-        if let Some(i) = self.find(terminator) {
-            debug_assert!(str::from_utf8(&self.inner[..i]).is_ok());
-            // SAFETY: ok because `str::find` returns the index of a char boundary
-            unsafe { str::from_utf8_unchecked(&self.inner[..i]) }
-        } else {
-            self
+        match self.find(terminator) {
+            Some(i) => &self[..i],
+            _ => self,
         }
     }
 
