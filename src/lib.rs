@@ -1,4 +1,4 @@
-//! # FStr: stack-allocated fixed-length string type
+//! # FStr: a stack-allocated fixed-length string type
 //!
 //! This crate provides a thin wrapper for `[u8; N]` to handle a stack-allocated byte array as a
 //! fixed-length, [`String`]-like type through common traits such as `Display`, `PartialEq`, and
@@ -25,9 +25,10 @@
 //! # Ok::<(), std::str::Utf8Error>(())
 //! ```
 //!
-//! Unlike [`String`] and [`arrayvec::ArrayString`], this type manages fixed-length strings only.
-//! The type parameter takes the exact length (in bytes) of a concrete type, and the concrete type
-//! only holds the string values of that size.
+//! Unlike [`String`] and [`arrayvec::ArrayString`], this type has the same binary representation
+//! as the underlying `[u8; N]` and manages fixed-length strings only. The type parameter takes the
+//! exact length (in bytes) of a concrete type, and the concrete type only holds the string values
+//! of that size.
 //!
 //! [`arrayvec::ArrayString`]: https://docs.rs/arrayvec/latest/arrayvec/struct.ArrayString.html
 //!
@@ -220,13 +221,13 @@ impl<const N: usize> FStr<N> {
     pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must be ASCII char");
 
-        let bs = s.as_bytes();
-        let len = if bs.len() <= N {
-            bs.len()
+        let s = s.as_bytes();
+        let len = if s.len() <= N {
+            s.len()
         } else {
             // locate last char boundary by skipping continuation bytes, which start with `10`
             let mut i = N;
-            while (bs[i] >> 6) == 0b10 {
+            while (s[i] as i8) < -64 {
                 i -= 1;
             }
             i
@@ -235,7 +236,7 @@ impl<const N: usize> FStr<N> {
         let mut utf8_bytes = [filler; N];
         let mut i = 0;
         while i < len {
-            utf8_bytes[i] = bs[i];
+            utf8_bytes[i] = s[i];
             i += 1;
         }
         // SAFETY: ok because `utf8_bytes` consist of the trailing ASCII fillers and either of the
@@ -284,12 +285,9 @@ impl<const N: usize> FStr<N> {
     /// ```
     #[inline]
     pub fn slice_to_terminator(&self, terminator: char) -> &str {
-        if let Some(i) = self.find(terminator) {
-            debug_assert!(str::from_utf8(&self.inner[..i]).is_ok());
-            // SAFETY: ok because `str::find` returns the index of a char boundary
-            unsafe { str::from_utf8_unchecked(&self.inner[..i]) }
-        } else {
-            self
+        match self.find(terminator) {
+            Some(i) => &self[..i],
+            _ => self,
         }
     }
 
@@ -329,7 +327,7 @@ impl<const N: usize> FStr<N> {
     /// ```
     #[inline]
     pub fn writer(&mut self) -> impl fmt::Write + '_ {
-        self.writer_at(0)
+        Cursor::new_at(self.as_mut_str(), 0)
     }
 
     /// Returns a writer that starts at an `index`.
@@ -354,11 +352,7 @@ impl<const N: usize> FStr<N> {
     /// ```
     #[inline]
     pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + '_ {
-        assert!(self.is_char_boundary(index), "`index` not at char boundary");
-        FStrWriter {
-            cursor: index,
-            buffer: self,
-        }
+        Cursor::new_at(self.as_mut_str(), index)
     }
 }
 
@@ -502,23 +496,34 @@ impl<const N: usize> str::FromStr for FStr<N> {
     }
 }
 
-/// A writer structure that writes string slices into `FStr<N>`.
+/// A cursor structure that writes string slices into a fixed-length `&mut str`.
 #[derive(Debug)]
-struct FStrWriter<'a, const N: usize> {
-    cursor: usize,
-    buffer: &'a mut FStr<N>,
+struct Cursor<T> {
+    inner: T,
+    pos: usize,
 }
 
-impl<'a, const N: usize> fmt::Write for FStrWriter<'a, N> {
+impl<T: AsRef<str>> Cursor<T> {
+    #[inline]
+    fn new_at(inner: T, index: usize) -> Self {
+        assert!(
+            inner.as_ref().is_char_boundary(index),
+            "`index` not at char boundary"
+        );
+        Self { inner, pos: index }
+    }
+}
+
+impl fmt::Write for Cursor<&mut str> {
     #[inline]
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        let end = self.cursor + s.len();
-        if self.buffer.is_char_boundary(end) {
-            // SAFETY: ok because it copies the entire `s` to `buffer` and the next byte right
-            // after those copied, if any, is a character boundary
-            self.buffer.inner[self.cursor..end].copy_from_slice(s.as_bytes());
-            debug_assert!(str::from_utf8(&self.buffer.inner).is_ok());
-            self.cursor = end;
+        let end = self.pos + s.len();
+        if self.inner.is_char_boundary(end) {
+            // SAFETY: ok because it copies the entire `s` to the buffer and `self.pos` and `end`
+            // are managed or checked to be at a character boundary
+            unsafe { self.inner.as_bytes_mut()[self.pos..end].copy_from_slice(s.as_bytes()) };
+            debug_assert!(str::from_utf8(self.inner.as_bytes()).is_ok());
+            self.pos = end;
             Ok(())
         } else {
             Err(fmt::Error)
