@@ -80,7 +80,7 @@
 
 #[cfg(not(feature = "std"))]
 use core as std;
-use std::{borrow, fmt, hash, ops, str};
+use std::{borrow, fmt, hash, mem, ops, str};
 
 /// A stack-allocated fixed-length string type.
 ///
@@ -327,7 +327,7 @@ impl<const N: usize> FStr<N> {
     /// ```
     #[inline]
     pub fn writer(&mut self) -> impl fmt::Write + '_ {
-        Cursor::new_at(self.as_mut_str(), 0)
+        Writer(self.as_mut_str())
     }
 
     /// Returns a writer that starts at an `index`.
@@ -352,7 +352,7 @@ impl<const N: usize> FStr<N> {
     /// ```
     #[inline]
     pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + '_ {
-        Cursor::new_at(self.as_mut_str(), index)
+        Writer(&mut self[index..])
     }
 }
 
@@ -496,34 +496,24 @@ impl<const N: usize> str::FromStr for FStr<N> {
     }
 }
 
-/// A cursor structure that writes string slices into a fixed-length `&mut str`.
+/// A writer structure returned by [`FStr::writer`] and [`FStr::writer_at`].
 #[derive(Debug)]
-struct Cursor<T> {
-    inner: T,
-    pos: usize,
-}
+struct Writer<'s>(&'s mut str);
 
-impl<T: AsRef<str>> Cursor<T> {
-    #[inline]
-    fn new_at(inner: T, index: usize) -> Self {
-        assert!(
-            inner.as_ref().is_char_boundary(index),
-            "`index` not at char boundary"
-        );
-        Self { inner, pos: index }
-    }
-}
-
-impl fmt::Write for Cursor<&mut str> {
+impl<'s> fmt::Write for Writer<'s> {
     #[inline]
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        let end = self.pos + s.len();
-        if self.inner.is_char_boundary(end) {
-            // SAFETY: ok because it copies the entire `s` to the buffer and `self.pos` and `end`
-            // are managed or checked to be at a character boundary
-            unsafe { self.inner.as_bytes_mut()[self.pos..end].copy_from_slice(s.as_bytes()) };
-            debug_assert!(str::from_utf8(self.inner.as_bytes()).is_ok());
-            self.pos = end;
+        // This writer works similarly to the `std::io::Write` implementation for `&mut [u8]`,
+        // except that this writer writes nothing when it cannot write the entire `s` successfully.
+        if self.0.is_char_boundary(s.len()) {
+            let (written, remaining) = mem::take(&mut self.0).split_at_mut(s.len());
+            self.0 = remaining;
+
+            // SAFETY: ok because it copies a valid string slice from one location to another
+            unsafe { written.as_bytes_mut() }.copy_from_slice(s.as_bytes());
+
+            debug_assert!(str::from_utf8(written.as_bytes()).is_ok());
+            debug_assert!(str::from_utf8(self.0.as_bytes()).is_ok());
             Ok(())
         } else {
             Err(fmt::Error)
