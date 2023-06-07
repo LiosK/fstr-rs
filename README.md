@@ -10,7 +10,7 @@ fixed-length, `String`-like type through common traits such as `Display`, `Parti
 ```rust
 use fstr::FStr;
 
-let x = FStr::from_inner(*b"foo")?;
+let x = FStr::try_from(b"foo")?;
 println!("{x}"); // "foo"
 assert_eq!(x, "foo");
 assert_eq!(&x[..], "foo");
@@ -18,7 +18,7 @@ assert_eq!(&x as &str, "foo");
 assert!(!x.is_empty());
 assert!(x.is_ascii());
 
-let mut y = FStr::from_inner(*b"bar")?;
+let mut y = FStr::try_from(b"bar")?;
 assert_eq!(y, "bar");
 y.make_ascii_uppercase();
 assert_eq!(y, "BAR");

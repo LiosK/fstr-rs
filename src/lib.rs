@@ -7,7 +7,7 @@
 //! ```rust
 //! use fstr::FStr;
 //!
-//! let x = FStr::from_inner(*b"foo")?;
+//! let x = FStr::try_from(b"foo")?;
 //! println!("{x}"); // "foo"
 //! assert_eq!(x, "foo");
 //! assert_eq!(&x[..], "foo");
@@ -15,7 +15,7 @@
 //! assert!(!x.is_empty());
 //! assert!(x.is_ascii());
 //!
-//! let mut y = FStr::from_inner(*b"bar")?;
+//! let mut y = FStr::try_from(b"bar")?;
 //! assert_eq!(y, "bar");
 //! y.make_ascii_uppercase();
 //! assert_eq!(y, "BAR");
@@ -496,6 +496,24 @@ impl<const N: usize> str::FromStr for FStr<N> {
     }
 }
 
+impl<const N: usize> TryFrom<[u8; N]> for FStr<N> {
+    type Error = str::Utf8Error;
+
+    #[inline]
+    fn try_from(value: [u8; N]) -> Result<Self, Self::Error> {
+        Self::from_inner(value)
+    }
+}
+
+impl<const N: usize> TryFrom<&[u8; N]> for FStr<N> {
+    type Error = str::Utf8Error;
+
+    #[inline]
+    fn try_from(value: &[u8; N]) -> Result<Self, Self::Error> {
+        Self::from_inner(*value)
+    }
+}
+
 /// A writer structure returned by [`FStr::writer`] and [`FStr::writer_at`].
 #[derive(Debug)]
 struct Writer<'s>(&'s mut str);
@@ -649,6 +667,16 @@ mod tests {
         assert!("😂".parse::<FStr<6>>().is_err());
         assert!("😂".parse::<FStr<4>>().is_ok());
         assert_eq!("😂".parse::<FStr<4>>().unwrap(), "😂");
+    }
+
+    /// Tests `TryFrom<[u8; N]>` and `TryFrom<&[u8; N]>` implementations.
+    #[test]
+    fn try_from_array() {
+        assert!(FStr::try_from(b"memory").is_ok());
+        assert!(FStr::try_from(*b"resort").is_ok());
+
+        assert!(FStr::try_from(&[0xff; 8]).is_err());
+        assert!(FStr::try_from([0xff; 8]).is_err());
     }
 
     /// Tests `fmt::Write` implementation.
