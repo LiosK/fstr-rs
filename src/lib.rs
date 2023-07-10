@@ -390,9 +390,14 @@ impl<const N: usize> Default for FStr<N> {
 
 impl<const N: usize> fmt::Debug for FStr<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FStr")
-            .field("inner", &self.as_str())
-            .finish()
+        use fmt::Write as _;
+        let mut buffer = FStr::<32>::repeat(b'\0');
+        let name = if write!(buffer.writer(), "FStr<{}>", N).is_ok() {
+            buffer.slice_to_terminator('\0')
+        } else {
+            "FStr"
+        };
+        f.debug_struct(name).field("inner", &self.as_str()).finish()
     }
 }
 
