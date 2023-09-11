@@ -8,7 +8,7 @@
 //! use fstr::FStr;
 //!
 //! let x = FStr::try_from(b"foo")?;
-//! println!("{x}"); // "foo"
+//! println!("{}", x); // "foo"
 //! assert_eq!(x, "foo");
 //! assert_eq!(&x[..], "foo");
 //! assert_eq!(&x as &str, "foo");
