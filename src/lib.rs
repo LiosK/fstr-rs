@@ -545,7 +545,7 @@ impl<'s> fmt::Write for Writer<'s> {
 }
 
 /// An error converting to [`FStr<N>`] from a byte slice having a different length than `N`.
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(Copy, Eq, PartialEq, Clone, Debug)]
 pub struct LengthError {
     actual: usize,
     expected: usize,
