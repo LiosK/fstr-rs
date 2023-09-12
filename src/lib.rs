@@ -173,21 +173,27 @@ impl<const N: usize> FStr<N> {
     /// ```
     #[inline]
     pub const fn from_str_unwrap(s: &str) -> Self {
-        match Self::const_from_str(s) {
+        match Self::try_from_str(s) {
             Ok(t) => t,
             _ => panic!("invalid byte length"),
         }
     }
 
     /// Creates a value from a string slice in the `const` context.
-    const fn const_from_str(s: &str) -> Result<Self, LengthError> {
-        let s = s.as_bytes();
+    const fn try_from_str(s: &str) -> Result<Self, LengthError> {
+        match Self::new_array_from_slice(s.as_bytes()) {
+            // SAFETY: ok because `inner` came from whole `&str`
+            Ok(inner) => Ok(unsafe { Self::from_inner_unchecked(inner) }),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Creates a fixed-length array by copying from a slice.
+    const fn new_array_from_slice(s: &[u8]) -> Result<[u8; N], LengthError> {
         if s.len() == N {
             let ptr = s.as_ptr() as *const [u8; N];
             // SAFETY: ok because `s.len() == N`
-            let utf8_bytes = unsafe { *ptr };
-            // SAFETY: ok because `utf8_bytes` came from `&str`
-            Ok(unsafe { Self::from_inner_unchecked(utf8_bytes) })
+            Ok(unsafe { *ptr })
         } else {
             Err(LengthError {
                 actual: s.len(),
@@ -497,7 +503,7 @@ impl<const N: usize> str::FromStr for FStr<N> {
 
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::const_from_str(s)
+        Self::try_from_str(s)
     }
 }
 
@@ -544,7 +550,7 @@ impl<'s> fmt::Write for Writer<'s> {
     }
 }
 
-/// An error converting to [`FStr<N>`] from a byte slice having a different length than `N`.
+/// An error converting to [`FStr<N>`] from a slice having a different length than `N`.
 #[derive(Copy, Eq, PartialEq, Clone, Debug)]
 pub struct LengthError {
     actual: usize,
