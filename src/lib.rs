@@ -188,6 +188,21 @@ impl<const N: usize> FStr<N> {
         }
     }
 
+    /// Creates a value from a byte slice in the `const` context.
+    const fn try_from_slice(s: &[u8]) -> Result<Self, FromSliceError> {
+        match Self::new_array_from_slice(s) {
+            Ok(inner) => match Self::from_inner(inner) {
+                Ok(t) => Ok(t),
+                Err(e) => Err(FromSliceError {
+                    kind: FromSliceErrorKind::Utf8(e),
+                }),
+            },
+            Err(e) => Err(FromSliceError {
+                kind: FromSliceErrorKind::Length(e),
+            }),
+        }
+    }
+
     /// Creates a fixed-length array by copying from a slice.
     const fn new_array_from_slice(s: &[u8]) -> Result<[u8; N], LengthError> {
         if s.len() == N {
@@ -525,6 +540,15 @@ impl<const N: usize> TryFrom<&[u8; N]> for FStr<N> {
     }
 }
 
+impl<const N: usize> TryFrom<&[u8]> for FStr<N> {
+    type Error = FromSliceError;
+
+    #[inline]
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Self::try_from_slice(value)
+    }
+}
+
 /// A writer structure returned by [`FStr::writer`] and [`FStr::writer_at`].
 #[derive(Debug)]
 struct Writer<'s>(&'s mut str);
@@ -568,10 +592,33 @@ impl fmt::Display for LengthError {
     }
 }
 
+/// An error converting to [`FStr<N>`] from a byte slice.
+#[derive(Copy, Eq, PartialEq, Clone, Debug)]
+pub struct FromSliceError {
+    kind: FromSliceErrorKind,
+}
+
+#[derive(Copy, Eq, PartialEq, Clone, Debug)]
+enum FromSliceErrorKind {
+    Length(LengthError),
+    Utf8(str::Utf8Error),
+}
+
+impl fmt::Display for FromSliceError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use FromSliceErrorKind::{Length, Utf8};
+        match self.kind {
+            Length(source) => write!(f, "could not convert slice to FStr: {}", source),
+            Utf8(source) => write!(f, "could not convert slice to FStr: {}", source),
+        }
+    }
+}
+
 #[cfg(feature = "std")]
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 mod std_integration {
-    use super::{FStr, LengthError};
+    use super::{FStr, FromSliceError, FromSliceErrorKind, LengthError};
 
     impl<const N: usize> From<FStr<N>> for String {
         #[inline]
@@ -604,6 +651,15 @@ mod std_integration {
     }
 
     impl std::error::Error for LengthError {}
+
+    impl std::error::Error for FromSliceError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match &self.kind {
+                FromSliceErrorKind::Length(source) => Some(source),
+                FromSliceErrorKind::Utf8(source) => Some(source),
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -688,6 +744,18 @@ mod tests {
 
         assert!(FStr::try_from(&[0xff; 8]).is_err());
         assert!(FStr::try_from([0xff; 8]).is_err());
+    }
+
+    /// Tests `TryFrom<&[u8]>` implementation.
+    #[test]
+    fn try_from_slice() {
+        assert!(FStr::<4>::try_from(b"memory".as_slice()).is_err());
+        assert!(FStr::<6>::try_from(b"memory".as_slice()).is_ok());
+        assert!(FStr::<8>::try_from(b"memory".as_slice()).is_err());
+
+        assert!(FStr::<7>::try_from([0xff; 8].as_slice()).is_err());
+        assert!(FStr::<8>::try_from([0xff; 8].as_slice()).is_err());
+        assert!(FStr::<9>::try_from([0xff; 8].as_slice()).is_err());
     }
 
     /// Tests `fmt::Write` implementation.
