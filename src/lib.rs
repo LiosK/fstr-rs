@@ -182,7 +182,7 @@ impl<const N: usize> FStr<N> {
     /// Creates a value from a string slice in the `const` context.
     const fn try_from_str(s: &str) -> Result<Self, LengthError> {
         match Self::new_array_from_slice(s.as_bytes()) {
-            // SAFETY: ok because `inner` came from whole `&str`
+            // SAFETY: ok because `inner` contains the whole content of a string slice
             Ok(inner) => Ok(unsafe { Self::from_inner_unchecked(inner) }),
             Err(e) => Err(e),
         }
@@ -243,26 +243,38 @@ impl<const N: usize> FStr<N> {
         assert!(filler.is_ascii(), "filler byte must be ASCII char");
 
         let s = s.as_bytes();
-        let len = if s.len() <= N {
-            s.len()
-        } else {
-            // locate last char boundary by skipping continuation bytes, which start with `10`
+        if let Ok(inner) = Self::new_array_from_slice(s) {
+            // SAFETY: ok because `inner` contains the whole content of a string slice
+            unsafe { Self::from_inner_unchecked(inner) }
+        } else if s.len() > N {
+            let Ok(mut inner) = Self::new_array_from_slice(s.split_at(N).0) else {
+                unreachable!();
+            };
+
+            // if `inner` is followed by a continuation byte (`0b10xx_xxxx`), overwrite the last
+            // character fragment with fillers
             let mut i = N;
             while (s[i] as i8) < -64 {
                 i -= 1;
+                inner[i] = filler;
             }
-            i
-        };
 
-        let mut utf8_bytes = [filler; N];
-        let mut i = 0;
-        while i < len {
-            utf8_bytes[i] = s[i];
-            i += 1;
+            // SAFETY: ok because `inner` consists of the trailing ASCII fillers and the part of
+            // `s` truncated at a character boundary
+            unsafe { Self::from_inner_unchecked(inner) }
+        } else {
+            let mut inner = [filler; N];
+
+            let mut i = 0;
+            while i < s.len() {
+                inner[i] = s[i];
+                i += 1;
+            }
+
+            // SAFETY: ok because `inner` consists of the trailing ASCII fillers and the whole
+            // content of `s`
+            unsafe { Self::from_inner_unchecked(inner) }
         }
-        // SAFETY: ok because `utf8_bytes` consist of the trailing ASCII fillers and either of the
-        // whole `s` or the part of `s` truncated at a character boundary
-        unsafe { Self::from_inner_unchecked(utf8_bytes) }
     }
 
     /// Creates a value by repeating an ASCII byte `N` times.
