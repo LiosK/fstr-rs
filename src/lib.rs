@@ -572,8 +572,8 @@ impl<'s> fmt::Write for Writer<'s> {
         // This writer works similarly to the `std::io::Write` implementation for `&mut [u8]`,
         // except that this writer writes nothing when it cannot write the entire `s` successfully.
         if self.0.is_char_boundary(s.len()) {
-            let (written, remaining) = mem::take(&mut self.0).split_at_mut(s.len());
-            self.0 = remaining;
+            let written;
+            (written, self.0) = mem::take(&mut self.0).split_at_mut(s.len());
 
             // SAFETY: ok because it copies a valid string slice from one location to another
             unsafe { written.as_bytes_mut() }.copy_from_slice(s.as_bytes());
