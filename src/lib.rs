@@ -279,6 +279,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(FStr::<5>::repeat(b'-'), "-----");
     /// # assert_eq!(FStr::<0>::repeat(b'\0'), "");
     /// ```
+    #[inline]
     pub const fn repeat(filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must be ASCII char");
         // SAFETY: ok because the array consists of ASCII bytes only
@@ -582,7 +583,6 @@ pub struct LengthError {
 }
 
 impl fmt::Display for LengthError {
-    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -605,7 +605,6 @@ enum FromSliceErrorKind {
 }
 
 impl fmt::Display for FromSliceError {
-    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use FromSliceErrorKind::{Length, Utf8};
         match self.kind {
