@@ -98,7 +98,6 @@ impl<const N: usize> FStr<N> {
     pub const LENGTH: usize = N;
 
     /// Returns a string slice of the content.
-    #[inline]
     pub const fn as_str(&self) -> &str {
         debug_assert!(str::from_utf8(&self.inner).is_ok());
         // SAFETY: constructors must guarantee that `inner` is a valid UTF-8 sequence.
@@ -116,13 +115,11 @@ impl<const N: usize> FStr<N> {
     }
 
     /// Returns a reference to the underlying byte array.
-    #[inline]
     pub const fn as_bytes(&self) -> &[u8; N] {
         &self.inner
     }
 
     /// Extracts the underlying byte array.
-    #[inline]
     pub const fn into_inner(self) -> [u8; N] {
         self.inner
     }
@@ -141,7 +138,6 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(x, "foo");
     /// # Ok::<(), std::str::Utf8Error>(())
     /// ```
-    #[inline]
     pub const fn from_inner(utf8_bytes: [u8; N]) -> Result<Self, str::Utf8Error> {
         match str::from_utf8(&utf8_bytes) {
             Ok(_) => Ok(Self { inner: utf8_bytes }),
@@ -154,7 +150,6 @@ impl<const N: usize> FStr<N> {
     /// # Safety
     ///
     /// The byte array passed in must contain a valid UTF-8 byte sequence.
-    #[inline]
     pub const unsafe fn from_inner_unchecked(utf8_bytes: [u8; N]) -> Self {
         debug_assert!(str::from_utf8(&utf8_bytes).is_ok());
         Self { inner: utf8_bytes }
@@ -171,7 +166,6 @@ impl<const N: usize> FStr<N> {
     /// const K: FStr<3> = FStr::from_str_unwrap("foo");
     /// assert_eq!(K, FStr::from_str("foo").unwrap());
     /// ```
-    #[inline]
     pub const fn from_str_unwrap(s: &str) -> Self {
         match Self::try_from_str(s) {
             Ok(t) => t,
@@ -291,7 +285,6 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(FStr::<5>::repeat(b'-'), "-----");
     /// # assert_eq!(FStr::<0>::repeat(b'\0'), "");
     /// ```
-    #[inline]
     pub const fn repeat(filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must be ASCII char");
         // SAFETY: ok because the array consists of ASCII bytes only
@@ -317,7 +310,6 @@ impl<const N: usize> FStr<N> {
     /// # assert_eq!(FStr::from_inner([])?.slice_to_terminator(' '), "");
     /// # Ok::<(), std::str::Utf8Error>(())
     /// ```
-    #[inline]
     pub fn slice_to_terminator(&self, terminator: char) -> &str {
         match self.find(terminator) {
             Some(i) => &self[..i],
@@ -359,7 +351,6 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(c, "----++......");
     /// # Ok::<(), core::fmt::Error>(())
     /// ```
-    #[inline]
     pub fn writer(&mut self) -> impl fmt::Write + '_ {
         Writer(self.as_mut_str())
     }
@@ -384,7 +375,6 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(x, "..0x000042!.");
     /// # Ok::<(), core::fmt::Error>(())
     /// ```
-    #[inline]
     pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + '_ {
         Writer(&mut self[index..])
     }
@@ -393,14 +383,12 @@ impl<const N: usize> FStr<N> {
 impl<const N: usize> ops::Deref for FStr<N> {
     type Target = str;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         self.as_str()
     }
 }
 
 impl<const N: usize> ops::DerefMut for FStr<N> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut str {
         self.as_mut_str()
     }
@@ -416,7 +404,6 @@ impl<const N: usize> Default for FStr<N> {
     /// assert_eq!(FStr::<4>::default(), "    ");
     /// assert_eq!(FStr::<8>::default(), "        ");
     /// ```
-    #[inline]
     fn default() -> Self {
         Self::repeat(b' ')
     }
@@ -436,91 +423,78 @@ impl<const N: usize> fmt::Debug for FStr<N> {
 }
 
 impl<const N: usize> fmt::Display for FStr<N> {
-    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self.as_str(), f)
     }
 }
 
 impl<const N: usize> PartialEq for FStr<N> {
-    #[inline]
     fn eq(&self, other: &FStr<N>) -> bool {
         self.as_str().eq(other.as_str())
     }
 }
 
 impl<const N: usize> PartialEq<str> for FStr<N> {
-    #[inline]
     fn eq(&self, other: &str) -> bool {
         self.as_str().eq(other)
     }
 }
 
 impl<const N: usize> PartialEq<FStr<N>> for str {
-    #[inline]
     fn eq(&self, other: &FStr<N>) -> bool {
         self.eq(other.as_str())
     }
 }
 
 impl<const N: usize> PartialEq<&str> for FStr<N> {
-    #[inline]
     fn eq(&self, other: &&str) -> bool {
         self.as_str().eq(*other)
     }
 }
 
 impl<const N: usize> PartialEq<FStr<N>> for &str {
-    #[inline]
     fn eq(&self, other: &FStr<N>) -> bool {
         self.eq(&other.as_str())
     }
 }
 
 impl<const N: usize> hash::Hash for FStr<N> {
-    #[inline]
     fn hash<H: hash::Hasher>(&self, hasher: &mut H) {
         self.as_str().hash(hasher)
     }
 }
 
 impl<const N: usize> borrow::Borrow<str> for FStr<N> {
-    #[inline]
     fn borrow(&self) -> &str {
         self.as_str()
     }
 }
 
 impl<const N: usize> borrow::BorrowMut<str> for FStr<N> {
-    #[inline]
     fn borrow_mut(&mut self) -> &mut str {
         self.as_mut_str()
     }
 }
 
 impl<const N: usize> AsRef<str> for FStr<N> {
-    #[inline]
     fn as_ref(&self) -> &str {
         self.as_str()
     }
 }
 
 impl<const N: usize> AsMut<str> for FStr<N> {
-    #[inline]
     fn as_mut(&mut self) -> &mut str {
         self.as_mut_str()
     }
 }
 
 impl<const N: usize> AsRef<[u8]> for FStr<N> {
-    #[inline]
     fn as_ref(&self) -> &[u8] {
         self.as_bytes()
     }
 }
 
 impl<const N: usize> From<FStr<N>> for [u8; N] {
-    #[inline]
     fn from(value: FStr<N>) -> Self {
         value.into_inner()
     }
@@ -529,7 +503,6 @@ impl<const N: usize> From<FStr<N>> for [u8; N] {
 impl<const N: usize> str::FromStr for FStr<N> {
     type Err = LengthError;
 
-    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::try_from_str(s)
     }
@@ -538,7 +511,6 @@ impl<const N: usize> str::FromStr for FStr<N> {
 impl<const N: usize> TryFrom<[u8; N]> for FStr<N> {
     type Error = str::Utf8Error;
 
-    #[inline]
     fn try_from(value: [u8; N]) -> Result<Self, Self::Error> {
         Self::from_inner(value)
     }
@@ -547,7 +519,6 @@ impl<const N: usize> TryFrom<[u8; N]> for FStr<N> {
 impl<const N: usize> TryFrom<&[u8; N]> for FStr<N> {
     type Error = str::Utf8Error;
 
-    #[inline]
     fn try_from(value: &[u8; N]) -> Result<Self, Self::Error> {
         Self::from_inner(*value)
     }
@@ -556,7 +527,6 @@ impl<const N: usize> TryFrom<&[u8; N]> for FStr<N> {
 impl<const N: usize> TryFrom<&[u8]> for FStr<N> {
     type Error = FromSliceError;
 
-    #[inline]
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         Self::try_from_slice(value)
     }
@@ -567,13 +537,12 @@ impl<const N: usize> TryFrom<&[u8]> for FStr<N> {
 struct Writer<'s>(&'s mut str);
 
 impl<'s> fmt::Write for Writer<'s> {
-    #[inline]
     fn write_str(&mut self, s: &str) -> fmt::Result {
         // This writer works similarly to the `std::io::Write` implementation for `&mut [u8]`,
         // except that this writer writes nothing when it cannot write the entire `s` successfully.
         if self.0.is_char_boundary(s.len()) {
-            let (written, remaining) = mem::take(&mut self.0).split_at_mut(s.len());
-            self.0 = remaining;
+            let written;
+            (written, self.0) = mem::take(&mut self.0).split_at_mut(s.len());
 
             // SAFETY: ok because it copies a valid string slice from one location to another
             unsafe { written.as_bytes_mut() }.copy_from_slice(s.as_bytes());
@@ -632,7 +601,6 @@ mod std_integration {
     use super::{FStr, FromSliceError, FromSliceErrorKind, LengthError};
 
     impl<const N: usize> From<FStr<N>> for String {
-        #[inline]
         fn from(value: FStr<N>) -> Self {
             value.as_str().to_owned()
         }
@@ -641,21 +609,18 @@ mod std_integration {
     impl<const N: usize> TryFrom<String> for FStr<N> {
         type Error = LengthError;
 
-        #[inline]
         fn try_from(value: String) -> Result<Self, Self::Error> {
             value.parse()
         }
     }
 
     impl<const N: usize> PartialEq<String> for FStr<N> {
-        #[inline]
         fn eq(&self, other: &String) -> bool {
             self.as_str().eq(other)
         }
     }
 
     impl<const N: usize> PartialEq<FStr<N>> for String {
-        #[inline]
         fn eq(&self, other: &FStr<N>) -> bool {
             self.eq(other.as_str())
         }
@@ -881,14 +846,12 @@ mod serde_integration {
     use serde::{de, Deserializer, Serializer};
 
     impl<const N: usize> serde::Serialize for FStr<N> {
-        #[inline]
         fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
             serializer.serialize_str(self.as_str())
         }
     }
 
     impl<'de, const N: usize> serde::Deserialize<'de> for FStr<N> {
-        #[inline]
         fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
             deserializer.deserialize_str(VisitorImpl)
         }
