@@ -173,21 +173,42 @@ impl<const N: usize> FStr<N> {
     /// ```
     #[inline]
     pub const fn from_str_unwrap(s: &str) -> Self {
-        match Self::const_from_str(s) {
+        match Self::try_from_str(s) {
             Ok(t) => t,
             _ => panic!("invalid byte length"),
         }
     }
 
     /// Creates a value from a string slice in the `const` context.
-    const fn const_from_str(s: &str) -> Result<Self, LengthError> {
-        let s = s.as_bytes();
+    const fn try_from_str(s: &str) -> Result<Self, LengthError> {
+        match Self::copy_slice_to_array(s.as_bytes()) {
+            // SAFETY: ok because `inner` contains the whole content of a string slice
+            Ok(inner) => Ok(unsafe { Self::from_inner_unchecked(inner) }),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Creates a value from a byte slice in the `const` context.
+    const fn try_from_slice(s: &[u8]) -> Result<Self, FromSliceError> {
+        match Self::copy_slice_to_array(s) {
+            Ok(inner) => match Self::from_inner(inner) {
+                Ok(t) => Ok(t),
+                Err(e) => Err(FromSliceError {
+                    kind: FromSliceErrorKind::Utf8(e),
+                }),
+            },
+            Err(e) => Err(FromSliceError {
+                kind: FromSliceErrorKind::Length(e),
+            }),
+        }
+    }
+
+    /// Creates a fixed-length array by copying from a slice.
+    const fn copy_slice_to_array(s: &[u8]) -> Result<[u8; N], LengthError> {
         if s.len() == N {
             let ptr = s.as_ptr() as *const [u8; N];
             // SAFETY: ok because `s.len() == N`
-            let utf8_bytes = unsafe { *ptr };
-            // SAFETY: ok because `utf8_bytes` came from `&str`
-            Ok(unsafe { Self::from_inner_unchecked(utf8_bytes) })
+            Ok(unsafe { *ptr })
         } else {
             Err(LengthError {
                 actual: s.len(),
@@ -222,26 +243,38 @@ impl<const N: usize> FStr<N> {
         assert!(filler.is_ascii(), "filler byte must be ASCII char");
 
         let s = s.as_bytes();
-        let len = if s.len() <= N {
-            s.len()
-        } else {
-            // locate last char boundary by skipping continuation bytes, which start with `10`
+        if let Ok(inner) = Self::copy_slice_to_array(s) {
+            // SAFETY: ok because `inner` contains the whole content of a string slice
+            unsafe { Self::from_inner_unchecked(inner) }
+        } else if s.len() > N {
+            let Ok(mut inner) = Self::copy_slice_to_array(s.split_at(N).0) else {
+                unreachable!();
+            };
+
+            // if `inner` is followed by a continuation byte (`0b10xx_xxxx`), overwrite the last
+            // character fragment with fillers
             let mut i = N;
             while (s[i] as i8) < -64 {
                 i -= 1;
+                inner[i] = filler;
             }
-            i
-        };
 
-        let mut utf8_bytes = [filler; N];
-        let mut i = 0;
-        while i < len {
-            utf8_bytes[i] = s[i];
-            i += 1;
+            // SAFETY: ok because `inner` consists of the trailing ASCII fillers and the part of
+            // `s` truncated at a character boundary
+            unsafe { Self::from_inner_unchecked(inner) }
+        } else {
+            let mut inner = [filler; N];
+
+            let mut i = 0;
+            while i < s.len() {
+                inner[i] = s[i];
+                i += 1;
+            }
+
+            // SAFETY: ok because `inner` consists of the trailing ASCII fillers and the whole
+            // content of `s`
+            unsafe { Self::from_inner_unchecked(inner) }
         }
-        // SAFETY: ok because `utf8_bytes` consist of the trailing ASCII fillers and either of the
-        // whole `s` or the part of `s` truncated at a character boundary
-        unsafe { Self::from_inner_unchecked(utf8_bytes) }
     }
 
     /// Creates a value by repeating an ASCII byte `N` times.
@@ -258,6 +291,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(FStr::<5>::repeat(b'-'), "-----");
     /// # assert_eq!(FStr::<0>::repeat(b'\0'), "");
     /// ```
+    #[inline]
     pub const fn repeat(filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must be ASCII char");
         // SAFETY: ok because the array consists of ASCII bytes only
@@ -497,7 +531,7 @@ impl<const N: usize> str::FromStr for FStr<N> {
 
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::const_from_str(s)
+        Self::try_from_str(s)
     }
 }
 
@@ -516,6 +550,15 @@ impl<const N: usize> TryFrom<&[u8; N]> for FStr<N> {
     #[inline]
     fn try_from(value: &[u8; N]) -> Result<Self, Self::Error> {
         Self::from_inner(*value)
+    }
+}
+
+impl<const N: usize> TryFrom<&[u8]> for FStr<N> {
+    type Error = FromSliceError;
+
+    #[inline]
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Self::try_from_slice(value)
     }
 }
 
@@ -544,7 +587,7 @@ impl<'s> fmt::Write for Writer<'s> {
     }
 }
 
-/// An error converting to [`FStr<N>`] from a byte slice having a different length than `N`.
+/// An error converting to [`FStr<N>`] from a slice having a different length than `N`.
 #[derive(Copy, Eq, PartialEq, Clone, Debug)]
 pub struct LengthError {
     actual: usize,
@@ -552,7 +595,6 @@ pub struct LengthError {
 }
 
 impl fmt::Display for LengthError {
-    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -562,10 +604,32 @@ impl fmt::Display for LengthError {
     }
 }
 
+/// An error converting to [`FStr<N>`] from a byte slice.
+#[derive(Copy, Eq, PartialEq, Clone, Debug)]
+pub struct FromSliceError {
+    kind: FromSliceErrorKind,
+}
+
+#[derive(Copy, Eq, PartialEq, Clone, Debug)]
+enum FromSliceErrorKind {
+    Length(LengthError),
+    Utf8(str::Utf8Error),
+}
+
+impl fmt::Display for FromSliceError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use FromSliceErrorKind::{Length, Utf8};
+        match self.kind {
+            Length(source) => write!(f, "could not convert slice to FStr: {}", source),
+            Utf8(source) => write!(f, "could not convert slice to FStr: {}", source),
+        }
+    }
+}
+
 #[cfg(feature = "std")]
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 mod std_integration {
-    use super::{FStr, LengthError};
+    use super::{FStr, FromSliceError, FromSliceErrorKind, LengthError};
 
     impl<const N: usize> From<FStr<N>> for String {
         #[inline]
@@ -598,6 +662,15 @@ mod std_integration {
     }
 
     impl std::error::Error for LengthError {}
+
+    impl std::error::Error for FromSliceError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match &self.kind {
+                FromSliceErrorKind::Length(source) => Some(source),
+                FromSliceErrorKind::Utf8(source) => Some(source),
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -682,6 +755,18 @@ mod tests {
 
         assert!(FStr::try_from(&[0xff; 8]).is_err());
         assert!(FStr::try_from([0xff; 8]).is_err());
+    }
+
+    /// Tests `TryFrom<&[u8]>` implementation.
+    #[test]
+    fn try_from_slice() {
+        assert!(FStr::<4>::try_from(b"memory".as_slice()).is_err());
+        assert!(FStr::<6>::try_from(b"memory".as_slice()).is_ok());
+        assert!(FStr::<8>::try_from(b"memory".as_slice()).is_err());
+
+        assert!(FStr::<7>::try_from([0xff; 8].as_slice()).is_err());
+        assert!(FStr::<8>::try_from([0xff; 8].as_slice()).is_err());
+        assert!(FStr::<9>::try_from([0xff; 8].as_slice()).is_err());
     }
 
     /// Tests `fmt::Write` implementation.
