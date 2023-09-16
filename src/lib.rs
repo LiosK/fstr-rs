@@ -181,7 +181,7 @@ impl<const N: usize> FStr<N> {
 
     /// Creates a value from a string slice in the `const` context.
     const fn try_from_str(s: &str) -> Result<Self, LengthError> {
-        match Self::new_array_from_slice(s.as_bytes()) {
+        match Self::copy_slice_to_array(s.as_bytes()) {
             // SAFETY: ok because `inner` contains the whole content of a string slice
             Ok(inner) => Ok(unsafe { Self::from_inner_unchecked(inner) }),
             Err(e) => Err(e),
@@ -190,7 +190,7 @@ impl<const N: usize> FStr<N> {
 
     /// Creates a value from a byte slice in the `const` context.
     const fn try_from_slice(s: &[u8]) -> Result<Self, FromSliceError> {
-        match Self::new_array_from_slice(s) {
+        match Self::copy_slice_to_array(s) {
             Ok(inner) => match Self::from_inner(inner) {
                 Ok(t) => Ok(t),
                 Err(e) => Err(FromSliceError {
@@ -204,7 +204,7 @@ impl<const N: usize> FStr<N> {
     }
 
     /// Creates a fixed-length array by copying from a slice.
-    const fn new_array_from_slice(s: &[u8]) -> Result<[u8; N], LengthError> {
+    const fn copy_slice_to_array(s: &[u8]) -> Result<[u8; N], LengthError> {
         if s.len() == N {
             let ptr = s.as_ptr() as *const [u8; N];
             // SAFETY: ok because `s.len() == N`
@@ -243,11 +243,11 @@ impl<const N: usize> FStr<N> {
         assert!(filler.is_ascii(), "filler byte must be ASCII char");
 
         let s = s.as_bytes();
-        if let Ok(inner) = Self::new_array_from_slice(s) {
+        if let Ok(inner) = Self::copy_slice_to_array(s) {
             // SAFETY: ok because `inner` contains the whole content of a string slice
             unsafe { Self::from_inner_unchecked(inner) }
         } else if s.len() > N {
-            let Ok(mut inner) = Self::new_array_from_slice(s.split_at(N).0) else {
+            let Ok(mut inner) = Self::copy_slice_to_array(s.split_at(N).0) else {
                 unreachable!();
             };
 
