@@ -351,7 +351,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(c, "----++......");
     /// # Ok::<(), core::fmt::Error>(())
     /// ```
-    pub fn writer(&mut self) -> impl fmt::Write + '_ {
+    pub fn writer(&mut self) -> impl fmt::Write + fmt::Debug + '_ {
         Writer(self.as_mut_str())
     }
 
@@ -375,7 +375,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(x, "..0x000042!.");
     /// # Ok::<(), core::fmt::Error>(())
     /// ```
-    pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + '_ {
+    pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + fmt::Debug + '_ {
         Writer(&mut self[index..])
     }
 }
