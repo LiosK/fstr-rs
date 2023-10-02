@@ -80,7 +80,7 @@
 
 #[cfg(not(feature = "std"))]
 use core as std;
-use std::{borrow, fmt, hash, mem, ops, str};
+use std::{borrow, fmt, hash, mem, ops, slice, str};
 
 /// A stack-allocated fixed-length string type.
 ///
@@ -234,39 +234,33 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(FStr::<15>::from_str_lossy("😂🤪😱👻", b'.'), "😂🤪😱...");
     /// ```
     pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
-        assert!(filler.is_ascii(), "filler byte must be ASCII char");
+        assert!(filler.is_ascii(), "filler byte must represent ASCII char");
 
-        let s = s.as_bytes();
-        if let Ok(inner) = Self::copy_slice_to_array(s) {
-            // SAFETY: ok because `inner` contains the whole content of a string slice
-            unsafe { Self::from_inner_unchecked(inner) }
-        } else if s.len() > N {
-            let Ok(mut inner) = Self::copy_slice_to_array(s.split_at(N).0) else {
-                unreachable!();
-            };
-
-            // if `inner` is followed by a continuation byte (`0b10xx_xxxx`), overwrite the last
-            // character fragment with fillers
+        // stable const equivalent of `s[..s.floor_char_boundary(N)].as_bytes()`
+        let s = if s.len() <= N {
+            s.as_bytes()
+        } else {
+            let s = s.as_bytes();
+            // locate last char boundary by skipping tail continuation bytes (`0b10xx_xxxx`)
             let mut i = N;
             while (s[i] as i8) < -64 {
                 i -= 1;
-                inner[i] = filler;
             }
+            // SAFETY: ok because `i <= N && N < s.len()`
+            unsafe { slice::from_raw_parts(s.as_ptr(), i) }
+        };
 
-            // SAFETY: ok because `inner` consists of the trailing ASCII fillers and the part of
-            // `s` truncated at a character boundary
+        if let Ok(inner) = Self::copy_slice_to_array(s) {
+            // SAFETY: ok because `s` is from a string slice (truncated at a char boundary, if
+            // applicable) and `inner` is a copy of `s`
             unsafe { Self::from_inner_unchecked(inner) }
         } else {
-            let mut inner = [filler; N];
-
-            let mut i = 0;
-            while i < s.len() {
-                inner[i] = s[i];
-                i += 1;
-            }
-
-            // SAFETY: ok because `inner` consists of the trailing ASCII fillers and the whole
-            // content of `s`
+            let inner = [filler; N];
+            // SAFETY: `copy_from_nonoverlapping` call is safe because `s.len() < inner.len()` and
+            // `inner` is a local storage and thus never overlaps `s`
+            unsafe { (inner.as_ptr() as *mut u8).copy_from_nonoverlapping(s.as_ptr(), s.len()) };
+            // SAFETY: ok because `s` is from a string slice (truncated at a char boundary, if
+            // applicable) and `inner` consists of `s` and trailing ASCII fillers
             unsafe { Self::from_inner_unchecked(inner) }
         }
     }
@@ -286,7 +280,7 @@ impl<const N: usize> FStr<N> {
     /// # assert_eq!(FStr::<0>::repeat(b'\0'), "");
     /// ```
     pub const fn repeat(filler: u8) -> Self {
-        assert!(filler.is_ascii(), "filler byte must be ASCII char");
+        assert!(filler.is_ascii(), "filler byte must represent ASCII char");
         // SAFETY: ok because the array consists of ASCII bytes only
         unsafe { Self::from_inner_unchecked([filler; N]) }
     }
@@ -351,7 +345,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(c, "----++......");
     /// # Ok::<(), core::fmt::Error>(())
     /// ```
-    pub fn writer(&mut self) -> impl fmt::Write + '_ {
+    pub fn writer(&mut self) -> impl fmt::Write + fmt::Debug + '_ {
         Writer(self.as_mut_str())
     }
 
@@ -375,7 +369,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(x, "..0x000042!.");
     /// # Ok::<(), core::fmt::Error>(())
     /// ```
-    pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + '_ {
+    pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + fmt::Debug + '_ {
         Writer(&mut self[index..])
     }
 }
@@ -698,6 +692,14 @@ mod tests {
         }
     }
 
+    /// Tests `from_str_lossy()` against edge cases.
+    #[test]
+    fn from_str_lossy_zero() {
+        assert!(FStr::<0>::from_str_lossy("", b' ').is_empty());
+        assert!(FStr::<0>::from_str_lossy("pizza", b' ').is_empty());
+        assert!(FStr::<0>::from_str_lossy("🥹", b' ').is_empty());
+    }
+
     /// Tests `FromStr` implementation.
     #[test]
     fn from_str() {
@@ -734,7 +736,7 @@ mod tests {
         assert!(FStr::<9>::try_from([0xff; 8].as_slice()).is_err());
     }
 
-    /// Tests `fmt::Write` implementation.
+    /// Tests `fmt::Write` implementation of `Writer`.
     #[test]
     fn write_str() {
         use core::fmt::Write as _;
