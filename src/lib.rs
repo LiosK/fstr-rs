@@ -692,6 +692,14 @@ mod tests {
         }
     }
 
+    /// Tests `from_str_lossy()` against edge cases.
+    #[test]
+    fn from_str_lossy_zero() {
+        assert!(FStr::<0>::from_str_lossy("", b' ').is_empty());
+        assert!(FStr::<0>::from_str_lossy("pizza", b' ').is_empty());
+        assert!(FStr::<0>::from_str_lossy("🥹", b' ').is_empty());
+    }
+
     /// Tests `FromStr` implementation.
     #[test]
     fn from_str() {
@@ -728,7 +736,7 @@ mod tests {
         assert!(FStr::<9>::try_from([0xff; 8].as_slice()).is_err());
     }
 
-    /// Tests `fmt::Write` implementation.
+    /// Tests `fmt::Write` implementation of `Writer`.
     #[test]
     fn write_str() {
         use core::fmt::Write as _;
