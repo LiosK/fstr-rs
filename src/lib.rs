@@ -80,7 +80,7 @@
 
 #[cfg(not(feature = "std"))]
 use core as std;
-use std::{borrow, fmt, hash, mem, ops, slice, str};
+use std::{borrow, fmt, hash, mem, ops, str};
 
 /// A stack-allocated fixed-length string type.
 ///
@@ -200,9 +200,8 @@ impl<const N: usize> FStr<N> {
     /// Creates a fixed-length array by copying from a slice.
     const fn copy_slice_to_array(s: &[u8]) -> Result<[u8; N], LengthError> {
         if s.len() == N {
-            let ptr = s.as_ptr() as *const [u8; N];
             // SAFETY: ok because `s.len() == N`
-            Ok(unsafe { *ptr })
+            Ok(unsafe { *(s.as_ptr() as *const [u8; N]) })
         } else {
             Err(LengthError {
                 actual: s.len(),
@@ -236,33 +235,25 @@ impl<const N: usize> FStr<N> {
     pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
 
-        // stable const equivalent of `s[..s.floor_char_boundary(N)].as_bytes()`
-        let s = if s.len() <= N {
-            s.as_bytes()
+        // stable const equivalent of `s.floor_char_boundary(N)`
+        let len = if s.len() <= N {
+            s.len()
         } else {
-            let s = s.as_bytes();
             // locate last char boundary by skipping tail continuation bytes (`0b10xx_xxxx`)
             let mut i = N;
-            while (s[i] as i8) < -64 {
+            while (s.as_bytes()[i] as i8) < -64 {
                 i -= 1;
             }
-            // SAFETY: ok because `i <= N && N < s.len()`
-            unsafe { slice::from_raw_parts(s.as_ptr(), i) }
+            i
         };
 
-        if let Ok(inner) = Self::copy_slice_to_array(s) {
-            // SAFETY: ok because `s` is from a string slice (truncated at a char boundary, if
-            // applicable) and `inner` is a copy of `s`
-            unsafe { Self::from_inner_unchecked(inner) }
-        } else {
-            let inner = [filler; N];
-            // SAFETY: `copy_from_nonoverlapping` call is safe because `s.len() < inner.len()` and
-            // `inner` is a local storage and thus never overlaps `s`
-            unsafe { (inner.as_ptr() as *mut u8).copy_from_nonoverlapping(s.as_ptr(), s.len()) };
-            // SAFETY: ok because `s` is from a string slice (truncated at a char boundary, if
-            // applicable) and `inner` consists of `s` and trailing ASCII fillers
-            unsafe { Self::from_inner_unchecked(inner) }
-        }
+        let inner = [filler; N];
+        // SAFETY: `copy_from_nonoverlapping` call is safe because `len <= inner.len()` and `inner`
+        // is a local variable and thus never overlaps `s`
+        unsafe { (inner.as_ptr() as *mut u8).copy_from_nonoverlapping(s.as_ptr(), len) };
+        // SAFETY: ok because `s` is from a string slice (truncated at a char boundary, if
+        // applicable) and `inner` consists of `s` and trailing ASCII fillers
+        unsafe { Self::from_inner_unchecked(inner) }
     }
 
     /// Creates a value by repeating an ASCII byte `N` times.
@@ -694,10 +685,14 @@ mod tests {
 
     /// Tests `from_str_lossy()` against edge cases.
     #[test]
-    fn from_str_lossy_zero() {
+    fn from_str_lossy_edge() {
         assert!(FStr::<0>::from_str_lossy("", b' ').is_empty());
         assert!(FStr::<0>::from_str_lossy("pizza", b' ').is_empty());
         assert!(FStr::<0>::from_str_lossy("🥹", b' ').is_empty());
+
+        assert_eq!(FStr::<1>::from_str_lossy("", b' '), " ");
+        assert_eq!(FStr::<1>::from_str_lossy("pizza", b' '), "p");
+        assert_eq!(FStr::<1>::from_str_lossy("🥹", b' '), " ");
     }
 
     /// Tests `FromStr` implementation.
