@@ -693,10 +693,14 @@ mod tests {
 
     /// Tests `from_str_lossy()` against edge cases.
     #[test]
-    fn from_str_lossy_zero() {
+    fn from_str_lossy_edge() {
         assert!(FStr::<0>::from_str_lossy("", b' ').is_empty());
         assert!(FStr::<0>::from_str_lossy("pizza", b' ').is_empty());
         assert!(FStr::<0>::from_str_lossy("🥹", b' ').is_empty());
+
+        assert_eq!(FStr::<1>::from_str_lossy("", b' '), " ");
+        assert_eq!(FStr::<1>::from_str_lossy("pizza", b' '), "p");
+        assert_eq!(FStr::<1>::from_str_lossy("🥹", b' '), " ");
     }
 
     /// Tests `FromStr` implementation.
