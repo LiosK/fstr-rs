@@ -247,10 +247,25 @@ impl<const N: usize> FStr<N> {
             i
         };
 
-        let inner = [filler; N];
-        // SAFETY: `copy_from_nonoverlapping` call is safe because `len <= inner.len()` and `inner`
-        // is a local variable and thus never overlaps `s`
-        unsafe { (inner.as_ptr() as *mut u8).copy_from_nonoverlapping(s.as_ptr(), len) };
+        let inner = if s.len() >= N {
+            // SAFETY: ok because `s.as_ptr()` is `*const u8` and `s.len() >= N`
+            let mut inner = unsafe { *(s.as_ptr() as *const [u8; N]) };
+            let mut i = N;
+            while i > len {
+                i -= 1;
+                inner[i] = filler;
+            }
+            inner
+        } else {
+            let mut inner = [filler; N];
+            let mut i = len;
+            while i > 0 {
+                i -= 1;
+                inner[i] = s.as_bytes()[i];
+            }
+            inner
+        };
+
         // SAFETY: ok because `s` is from a string slice (truncated at a char boundary, if
         // applicable) and `inner` consists of `s` and trailing ASCII fillers
         unsafe { Self::from_inner_unchecked(inner) }
