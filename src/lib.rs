@@ -201,7 +201,7 @@ impl<const N: usize> FStr<N> {
     const fn copy_slice_to_array(s: &[u8]) -> Result<[u8; N], LengthError> {
         if s.len() == N {
             // SAFETY: ok because `s.len() == N`
-            Ok(unsafe { *(s.as_ptr() as *const [u8; N]) })
+            Ok(unsafe { *s.as_ptr().cast::<[u8; N]>() })
         } else {
             Err(LengthError {
                 actual: s.len(),
@@ -249,7 +249,7 @@ impl<const N: usize> FStr<N> {
 
         let inner = if s.len() >= N {
             // SAFETY: ok because `s.as_ptr()` is `*const u8` and `s.len() >= N`
-            let mut inner = unsafe { *(s.as_ptr() as *const [u8; N]) };
+            let mut inner = unsafe { *s.as_ptr().cast::<[u8; N]>() };
             let mut i = N;
             while i > len {
                 i -= 1;
