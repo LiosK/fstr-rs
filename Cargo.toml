@@ -1,6 +1,6 @@
 [package]
 name = "fstr"
-version = "0.2.10"
+version = "0.2.11"
 authors = ["LiosK <contact@mail.liosk.net>"]
 license = "Apache-2.0"
 edition = "2021"
@@ -10,6 +10,7 @@ repository = "https://github.com/LiosK/fstr-rs"
 [features]
 default = ["std"]
 std = []
+serde = ["dep:serde"]
 
 [dependencies]
 serde = { version = "1.0", default-features = false, optional = true }
