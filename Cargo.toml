@@ -10,6 +10,7 @@ repository = "https://github.com/LiosK/fstr-rs"
 [features]
 default = ["std"]
 std = []
+serde = ["dep:serde"]
 
 [dependencies]
 serde = { version = "1.0", default-features = false, optional = true }
