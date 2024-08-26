@@ -71,7 +71,8 @@ assert_eq!(buffer.slice_to_terminator('\0'), "haste makes waste");
 
 - `std` (optional; enabled by default) enables the integration with `std`. Disable default
   features to operate this crate under `no_std` environments.
-- `serde` (optional) enables the serialization and deserialization of `FStr`through `serde`.
+- `serde` (optional) enables the serialization and deserialization of `FStr` through `serde`.
+- `zerocopy` (optional) enables the integration with `zerocopy`.
 
 ## License
 

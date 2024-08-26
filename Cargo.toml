@@ -11,9 +11,11 @@ repository = "https://github.com/LiosK/fstr-rs"
 default = ["std"]
 std = []
 serde = ["dep:serde"]
+zerocopy = ["dep:zerocopy"]
 
 [dependencies]
 serde = { version = "1.0", default-features = false, optional = true }
+zerocopy = { version = "0.7", features = ["derive"], optional = true }
 
 [dev-dependencies]
 serde_test = { version = "1.0", default-features = false }

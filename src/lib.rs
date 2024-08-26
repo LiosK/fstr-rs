@@ -88,6 +88,10 @@ use std::{borrow, fmt, hash, mem, ops, str};
 ///
 /// See [the crate-level documentation](crate) for details.
 #[derive(Copy, Clone, Eq, Ord, PartialOrd)]
+#[cfg_attr(
+    feature = "zerocopy",
+    derive(zerocopy::AsBytes, zerocopy::FromBytes, zerocopy::FromZeroes)
+)]
 #[repr(transparent)]
 pub struct FStr<const N: usize> {
     inner: [u8; N],
