@@ -597,7 +597,7 @@ impl fmt::Display for FromSliceError {
 
 #[cfg(feature = "std")]
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
-mod std_integration {
+mod with_std {
     use super::{FStr, FromSliceError, FromSliceErrorKind, LengthError};
 
     impl<const N: usize> From<FStr<N>> for String {
@@ -853,7 +853,8 @@ mod tests {
 }
 
 #[cfg(feature = "serde")]
-mod serde_integration {
+#[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+mod with_serde {
     use super::{fmt, FStr};
     use serde::{de, Deserializer, Serializer};
 
