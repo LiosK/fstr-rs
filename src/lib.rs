@@ -271,7 +271,7 @@ impl<const N: usize> FStr<N> {
         unsafe { Self::from_inner_unchecked(inner) }
     }
 
-    /// Creates a value by repeating an ASCII byte `N` times.
+    /// Creates a value that is filled with an ASCII byte.
     ///
     /// # Panics
     ///
@@ -281,14 +281,21 @@ impl<const N: usize> FStr<N> {
     ///
     /// ```rust
     /// # use fstr::FStr;
-    /// assert_eq!(FStr::<3>::repeat(b'.'), "...");
-    /// assert_eq!(FStr::<5>::repeat(b'-'), "-----");
-    /// # assert_eq!(FStr::<0>::repeat(b'\0'), "");
+    /// assert_eq!(FStr::<3>::from_ascii_filler(b'.'), "...");
+    /// assert_eq!(FStr::<5>::from_ascii_filler(b'-'), "-----");
+    /// # assert_eq!(FStr::<0>::from_ascii_filler(b'\0'), "");
     /// ```
-    pub const fn repeat(filler: u8) -> Self {
+    pub const fn from_ascii_filler(filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
         // SAFETY: ok because the array consists of ASCII bytes only
         unsafe { Self::from_inner_unchecked([filler; N]) }
+    }
+
+    /// A deprecated synonym for [`FStr::from_ascii_filler`] retained for backward compatibility.
+    #[doc(hidden)]
+    #[deprecated(since = "0.2.12", note = "renamed to `from_ascii_filler`")]
+    pub const fn repeat(filler: u8) -> Self {
+        Self::from_ascii_filler(filler)
     }
 
     /// Returns a substring from the beginning to the specified terminator (if found) or to the end
@@ -331,14 +338,14 @@ impl<const N: usize> FStr<N> {
     /// # use fstr::FStr;
     /// use core::fmt::Write as _;
     ///
-    /// let mut a = FStr::<12>::repeat(b'.');
+    /// let mut a = FStr::<12>::from_ascii_filler(b'.');
     /// write!(a.writer(), "0x{:06x}!", 0x42)?;
     /// assert_eq!(a, "0x000042!...");
     ///
-    /// let mut b = FStr::<12>::repeat(b'.');
+    /// let mut b = FStr::<12>::from_ascii_filler(b'.');
     /// assert!(write!(b.writer(), "{:016}", 1).is_err()); // buffer overflow
     ///
-    /// let mut c = FStr::<12>::repeat(b'.');
+    /// let mut c = FStr::<12>::from_ascii_filler(b'.');
     /// let mut w = c.writer();
     /// write!(w, "🥺")?;
     /// write!(w, "++")?;
@@ -370,7 +377,7 @@ impl<const N: usize> FStr<N> {
     /// # use fstr::FStr;
     /// use core::fmt::Write as _;
     ///
-    /// let mut x = FStr::<12>::repeat(b'.');
+    /// let mut x = FStr::<12>::from_ascii_filler(b'.');
     /// write!(x.writer_at(2), "0x{:06x}!", 0x42)?;
     /// assert_eq!(x, "..0x000042!.");
     /// # Ok::<_, core::fmt::Error>(())
@@ -461,7 +468,7 @@ impl<const N: usize> ops::DerefMut for FStr<N> {
 }
 
 impl<const N: usize> Default for FStr<N> {
-    /// Returns a fixed-length string value filled by white spaces (`U+0020`).
+    /// Returns a fixed-length string value filled with white spaces (`U+0020`).
     ///
     /// # Examples
     ///
@@ -471,7 +478,7 @@ impl<const N: usize> Default for FStr<N> {
     /// assert_eq!(FStr::<8>::default(), "        ");
     /// ```
     fn default() -> Self {
-        Self::repeat(b' ')
+        Self::from_ascii_filler(b' ')
     }
 }
 
@@ -831,19 +838,19 @@ mod tests {
     fn write_str() {
         use core::fmt::Write as _;
 
-        let mut a = FStr::<5>::repeat(b' ');
+        let mut a = FStr::<5>::from_ascii_filler(b' ');
         assert!(write!(a.writer(), "vanilla").is_err());
         assert_eq!(a, "     ");
 
-        let mut b = FStr::<7>::repeat(b' ');
+        let mut b = FStr::<7>::from_ascii_filler(b' ');
         assert!(write!(b.writer(), "vanilla").is_ok());
         assert_eq!(b, "vanilla");
 
-        let mut c = FStr::<9>::repeat(b' ');
+        let mut c = FStr::<9>::from_ascii_filler(b' ');
         assert!(write!(c.writer(), "vanilla").is_ok());
         assert_eq!(c, "vanilla  ");
 
-        let mut d = FStr::<16>::repeat(b'.');
+        let mut d = FStr::<16>::from_ascii_filler(b'.');
         assert!(write!(d.writer(), "😂🤪😱👻").is_ok());
         assert_eq!(d, "😂🤪😱👻");
         assert!(write!(d.writer(), "🔥").is_ok());
@@ -853,7 +860,7 @@ mod tests {
         assert!(write!(d.writer(), ".").is_err());
         assert_eq!(d, "🥺😭😱👻");
 
-        let mut e = FStr::<12>::repeat(b' ');
+        let mut e = FStr::<12>::from_ascii_filler(b' ');
         assert!(write!(e.writer(), "{:04}/{:04}", 42, 334).is_ok());
         assert_eq!(e, "0042/0334   ");
 
