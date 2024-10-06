@@ -536,7 +536,7 @@ impl<const N: usize> TryFrom<&[u8]> for FStr<N> {
 #[derive(Debug)]
 struct Writer<'s>(&'s mut str);
 
-impl<'s> fmt::Write for Writer<'s> {
+impl fmt::Write for Writer<'_> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         // This writer works similarly to the `std::io::Write` implementation for `&mut [u8]`,
         // except that this writer writes nothing when it cannot write the entire `s` successfully.
@@ -872,7 +872,7 @@ mod with_serde {
 
     struct VisitorImpl<const N: usize>;
 
-    impl<'de, const N: usize> de::Visitor<'de> for VisitorImpl<N> {
+    impl<const N: usize> de::Visitor<'_> for VisitorImpl<N> {
         type Value = FStr<N>;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
