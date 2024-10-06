@@ -212,9 +212,9 @@ impl<const N: usize> FStr<N> {
 
     /// Creates a value from an arbitrary string but truncates or stretches the content.
     ///
-    /// This function appends the `filler` bytes to the end if the argument is shorter than the
-    /// type's length. The `filler` byte must be within the ASCII range. The argument is truncated,
-    /// if longer, at the closest character boundary to the type's length, with the `filler` bytes
+    /// This function appends `filler` bytes to the end if the argument is shorter than the type's
+    /// length. The `filler` byte must be within the ASCII range. The argument is truncated, if
+    /// longer, at the closest character boundary to the type's length, with `filler` bytes
     /// appended where necessary.
     ///
     /// # Panics
@@ -378,6 +378,72 @@ impl<const N: usize> FStr<N> {
     pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + fmt::Debug + '_ {
         Writer(&mut self[index..])
     }
+
+    /// Creates a value from [`fmt::Arguments`], with `filler` bytes appended if the formatted
+    /// string is shorter than the type's length.
+    ///
+    /// This function is different from [`FStr::from_str_lossy`] and [`FStr::writer`] in that it
+    /// does not truncate the formatted string or result in a partially written `FStr` value; when
+    /// it returns `Ok`, the result contains the complete content of the formatted string, with
+    /// `filler` bytes appended where necessary.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if the formatted string is longer than the type's length.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `filler` is out of the ASCII range.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use fstr::FStr;
+    /// let x = FStr::<10>::from_format_args(format_args!("  {:04x}  ", 0x42), b'\0')?;
+    /// assert_eq!(x.slice_to_terminator('\0'), "  0042  ");
+    /// assert_eq!(x, "  0042  \0\0");
+    /// # Ok::<_, fstr::FormatError>(())
+    /// ```
+    pub fn from_format_args(args: fmt::Arguments<'_>, filler: u8) -> Result<Self, FormatError> {
+        assert!(filler.is_ascii(), "filler byte must represent ASCII char");
+
+        struct FmtWriter<'s>(&'s mut [mem::MaybeUninit<u8>]);
+
+        impl fmt::Write for FmtWriter<'_> {
+            fn write_str(&mut self, s: &str) -> fmt::Result {
+                if s.len() <= self.0.len() {
+                    let written;
+                    (written, self.0) = mem::take(&mut self.0).split_at_mut(s.len());
+                    // SAFETY: ok because &[T] and &[MaybeUninit<T>] have the same layout
+                    written.copy_from_slice(unsafe {
+                        mem::transmute::<&[u8], &[mem::MaybeUninit<u8>]>(s.as_bytes())
+                    });
+                    Ok(())
+                } else {
+                    Err(fmt::Error)
+                }
+            }
+        }
+
+        const ELEMENT: mem::MaybeUninit<u8> = mem::MaybeUninit::uninit();
+        let mut inner = [ELEMENT; N];
+        let mut w = FmtWriter(inner.as_mut_slice());
+        if fmt::Write::write_fmt(&mut w, args).is_ok() {
+            w.0.fill(mem::MaybeUninit::new(filler)); // initialize remaining part with `filler`s
+
+            // SAFETY: ok because [T; N] and [MaybeUninit<T>; N] have the same size and layout and
+            // the entire array has been initialized with valid `&str`s and ASCII `filler`s
+            Ok(unsafe {
+                Self::from_inner_unchecked(
+                    mem::transmute_copy::<[mem::MaybeUninit<u8>; N], [u8; N]>(&inner),
+                )
+            })
+        } else {
+            // not dropping partially written data because:
+            const _STATIC_ASSERT: () = assert!(!mem::needs_drop::<u8>(), "u8 never needs drop");
+            Err(FormatError { limit: N })
+        }
+    }
 }
 
 impl<const N: usize> ops::Deref for FStr<N> {
@@ -411,14 +477,14 @@ impl<const N: usize> Default for FStr<N> {
 
 impl<const N: usize> fmt::Debug for FStr<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use fmt::Write as _;
-        let mut buffer = FStr::<32>::repeat(b'\0');
-        let name = if write!(buffer.writer(), "FStr<{}>", N).is_ok() {
-            buffer.slice_to_terminator('\0')
-        } else {
-            "FStr"
-        };
-        f.debug_struct(name).field("inner", &self.as_str()).finish()
+        f.debug_struct(
+            match FStr::<32>::from_format_args(format_args!("FStr<{}>", N), b'\0') {
+                Ok(ref buffer) => buffer.slice_to_terminator('\0'),
+                Err(_) => "FStr",
+            },
+        )
+        .field("inner", &self.as_str())
+        .finish()
     }
 }
 
@@ -595,10 +661,22 @@ impl fmt::Display for FromSliceError {
     }
 }
 
+/// An error creating [`FStr<N>`] from [`fmt::Arguments`].
+#[derive(Debug)]
+pub struct FormatError {
+    limit: usize,
+}
+
+impl fmt::Display for FormatError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "formatted string was longer than {} bytes", self.limit)
+    }
+}
+
 #[cfg(feature = "std")]
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 mod with_std {
-    use super::{FStr, FromSliceError, FromSliceErrorKind, LengthError};
+    use super::{FStr, FormatError, FromSliceError, FromSliceErrorKind, LengthError};
 
     impl<const N: usize> From<FStr<N>> for String {
         fn from(value: FStr<N>) -> Self {
@@ -636,6 +714,8 @@ mod with_std {
             }
         }
     }
+
+    impl std::error::Error for FormatError {}
 }
 
 #[cfg(test)]
@@ -849,6 +929,34 @@ mod tests {
         assert_eq!(format!("{:-<7.3}", b), "jun----");
         assert_eq!(format!("{:>8.3}", b), "     jun");
         assert_eq!(format!("{:^9.3}", b), "   jun   ");
+    }
+
+    /// Tests `from_format_args()`.
+    #[test]
+    fn from_format_args() {
+        let args = format_args!("vanilla");
+        assert!(FStr::<5>::from_format_args(args, b' ').is_err());
+        assert_eq!(FStr::<7>::from_format_args(args, b' ').unwrap(), "vanilla");
+        assert_eq!(
+            FStr::<9>::from_format_args(args, b' ').unwrap(),
+            "vanilla  "
+        );
+
+        assert_eq!(
+            FStr::<20>::from_format_args(format_args!("{:^6}", "😂🤪😱👻"), b'.').unwrap(),
+            " 😂🤪😱👻 .."
+        );
+
+        assert_eq!(
+            FStr::<12>::from_format_args(format_args!("{:04}/{:04}", 42, 334), b'\0').unwrap(),
+            "0042/0334\0\0\0"
+        );
+
+        assert_eq!(
+            FStr::<0>::from_format_args(format_args!(""), b' ').unwrap(),
+            ""
+        );
+        assert!(FStr::<0>::from_format_args(format_args!(" "), b' ').is_err());
     }
 }
 
