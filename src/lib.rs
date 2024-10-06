@@ -22,7 +22,7 @@
 //!
 //! const K: FStr<8> = FStr::from_str_unwrap("constant");
 //! assert_eq!(K, "constant");
-//! # Ok::<(), std::str::Utf8Error>(())
+//! # Ok::<_, std::str::Utf8Error>(())
 //! ```
 //!
 //! Unlike [`String`] and [`arrayvec::ArrayString`], this type has the same binary representation
@@ -66,7 +66,7 @@
 //! use core::fmt::Write as _;
 //! write!(buffer.writer_at(c_str.len()), " makes waste")?;
 //! assert_eq!(buffer.slice_to_terminator('\0'), "haste makes waste");
-//! # Ok::<(), core::fmt::Error>(())
+//! # Ok::<_, core::fmt::Error>(())
 //! ```
 //!
 //! ## Crate features
@@ -136,7 +136,7 @@ impl<const N: usize> FStr<N> {
     /// # use fstr::FStr;
     /// let x = FStr::from_inner(*b"foo")?;
     /// assert_eq!(x, "foo");
-    /// # Ok::<(), std::str::Utf8Error>(())
+    /// # Ok::<_, std::str::Utf8Error>(())
     /// ```
     pub const fn from_inner(utf8_bytes: [u8; N]) -> Result<Self, str::Utf8Error> {
         match str::from_utf8(&utf8_bytes) {
@@ -308,7 +308,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(x.slice_to_terminator('\n'), "quick brown fox");
     /// assert_eq!(x.slice_to_terminator('🦊'), "quick brown fox\n");
     /// # assert_eq!(FStr::from_inner([])?.slice_to_terminator(' '), "");
-    /// # Ok::<(), std::str::Utf8Error>(())
+    /// # Ok::<_, std::str::Utf8Error>(())
     /// ```
     pub fn slice_to_terminator(&self, terminator: char) -> &str {
         match self.find(terminator) {
@@ -349,7 +349,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(c, "🥺++......");
     /// c.writer().write_str("----")?;
     /// assert_eq!(c, "----++......");
-    /// # Ok::<(), core::fmt::Error>(())
+    /// # Ok::<_, core::fmt::Error>(())
     /// ```
     pub fn writer(&mut self) -> impl fmt::Write + fmt::Debug + '_ {
         Writer(self.as_mut_str())
@@ -373,7 +373,7 @@ impl<const N: usize> FStr<N> {
     /// let mut x = FStr::<12>::repeat(b'.');
     /// write!(x.writer_at(2), "0x{:06x}!", 0x42)?;
     /// assert_eq!(x, "..0x000042!.");
-    /// # Ok::<(), core::fmt::Error>(())
+    /// # Ok::<_, core::fmt::Error>(())
     /// ```
     pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + fmt::Debug + '_ {
         Writer(&mut self[index..])
