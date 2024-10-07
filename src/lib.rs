@@ -612,6 +612,29 @@ impl<const N: usize> TryFrom<&[u8]> for FStr<N> {
 #[derive(Debug)]
 pub struct Writer<'s>(&'s mut str);
 
+impl Writer<'_> {
+    /// Returns the size (in bytes) of the remaining buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use fstr::FStr;
+    /// use core::fmt::Write as _;
+    ///
+    /// let mut x = FStr::<8>::from_ascii_filler(b'.');
+    /// let mut w = x.writer();
+    /// assert_eq!(w.capacity(), 8);
+    /// w.write_str("----")?;
+    /// assert_eq!(w.capacity(), 4);
+    /// w.write_str("🫠")?;
+    /// assert_eq!(w.capacity(), 0);
+    /// # Ok::<_, std::fmt::Error>(())
+    /// ```
+    pub fn capacity(&self) -> usize {
+        self.0.len()
+    }
+}
+
 impl fmt::Write for Writer<'_> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         // This writer works similarly to the `std::io::Write` implementation for `&mut [u8]`,
