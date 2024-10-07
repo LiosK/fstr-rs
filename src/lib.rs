@@ -22,7 +22,7 @@
 //!
 //! const K: FStr<8> = FStr::from_str_unwrap("constant");
 //! assert_eq!(K, "constant");
-//! # Ok::<_, std::str::Utf8Error>(())
+//! # Ok::<_, core::str::Utf8Error>(())
 //! ```
 //!
 //! Unlike [`String`] and [`arrayvec::ArrayString`], this type has the same binary representation
@@ -136,7 +136,7 @@ impl<const N: usize> FStr<N> {
     /// # use fstr::FStr;
     /// let x = FStr::from_inner(*b"foo")?;
     /// assert_eq!(x, "foo");
-    /// # Ok::<_, std::str::Utf8Error>(())
+    /// # Ok::<_, core::str::Utf8Error>(())
     /// ```
     pub const fn from_inner(utf8_bytes: [u8; N]) -> Result<Self, str::Utf8Error> {
         match str::from_utf8(&utf8_bytes) {
@@ -315,7 +315,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(x.slice_to_terminator('\n'), "quick brown fox");
     /// assert_eq!(x.slice_to_terminator('🦊'), "quick brown fox\n");
     /// # assert_eq!(FStr::from_inner([])?.slice_to_terminator(' '), "");
-    /// # Ok::<_, std::str::Utf8Error>(())
+    /// # Ok::<_, core::str::Utf8Error>(())
     /// ```
     pub fn slice_to_terminator(&self, terminator: char) -> &str {
         match self.find(terminator) {
@@ -628,7 +628,7 @@ impl Writer<'_> {
     /// assert_eq!(w.capacity(), 4);
     /// w.write_str("🫠")?;
     /// assert_eq!(w.capacity(), 0);
-    /// # Ok::<_, std::fmt::Error>(())
+    /// # Ok::<_, core::fmt::Error>(())
     /// ```
     pub fn capacity(&self) -> usize {
         self.0.len()
