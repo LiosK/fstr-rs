@@ -358,7 +358,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(c, "----++......");
     /// # Ok::<_, core::fmt::Error>(())
     /// ```
-    pub fn writer(&mut self) -> impl fmt::Write + fmt::Debug + '_ {
+    pub fn writer(&mut self) -> Writer<'_> {
         Writer(self.as_mut_str())
     }
 
@@ -382,7 +382,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(x, "..0x000042!.");
     /// # Ok::<_, core::fmt::Error>(())
     /// ```
-    pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + fmt::Debug + '_ {
+    pub fn writer_at(&mut self, index: usize) -> Writer<'_> {
         Writer(&mut self[index..])
     }
 
@@ -606,8 +606,11 @@ impl<const N: usize> TryFrom<&[u8]> for FStr<N> {
 }
 
 /// A writer structure returned by [`FStr::writer`] and [`FStr::writer_at`].
+///
+/// See the `FStr::writer` documentation for the detailed behavior of this type's [`fmt::Write`]
+/// implementation.
 #[derive(Debug)]
-struct Writer<'s>(&'s mut str);
+pub struct Writer<'s>(&'s mut str);
 
 impl fmt::Write for Writer<'_> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
@@ -669,6 +672,8 @@ impl fmt::Display for FromSliceError {
 }
 
 /// An error creating [`FStr<N>`] from [`fmt::Arguments`].
+///
+/// [`FStr::from_format_args`] reports this error if the formatted string is longer than `N` bytes.
 #[derive(Debug)]
 pub struct FormatError {
     limit: usize,
