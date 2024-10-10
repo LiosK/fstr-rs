@@ -1,8 +1,8 @@
 //! # FStr: a stack-allocated fixed-length string type
 //!
 //! This crate provides a thin wrapper for `[u8; N]` to handle a stack-allocated byte array as a
-//! fixed-length, [`String`]-like type through common traits such as `Display`, `PartialEq`, and
-//! `Deref<Target = str>`.
+//! fixed-length, [`String`]-like owned type through common traits including `Display`, `PartialEq`,
+//! and `Deref<Target = str>`.
 //!
 //! ```rust
 //! use fstr::FStr;
@@ -27,7 +27,7 @@
 //!
 //! Unlike [`String`] and [`arrayvec::ArrayString`], this type has the same binary representation
 //! as the underlying `[u8; N]` and manages fixed-length strings only. The type parameter takes the
-//! exact length (in bytes) of a concrete type, and the concrete type only holds the string values
+//! exact length (in bytes) of a concrete type, and each concrete type only holds the string values
 //! of that size.
 //!
 //! [`arrayvec::ArrayString`]: https://docs.rs/arrayvec/latest/arrayvec/struct.ArrayString.html
@@ -57,15 +57,16 @@
 //!
 //! ```rust
 //! # use fstr::FStr;
-//! let mut buffer = FStr::<20>::from_str_lossy("haste", b'\0');
-//! assert_eq!(buffer, "haste\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+//! let mut buffer = FStr::<24>::from_format_args(format_args!("&#x{:x};", b'@'), b'\0').unwrap();
+//! assert_eq!(buffer, "&#x40;\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
 //!
 //! let c_str = buffer.slice_to_terminator('\0');
-//! assert_eq!(c_str, "haste");
+//! assert_eq!(c_str, "&#x40;");
 //!
 //! use core::fmt::Write as _;
-//! write!(buffer.writer_at(c_str.len()), " makes waste")?;
-//! assert_eq!(buffer.slice_to_terminator('\0'), "haste makes waste");
+//! write!(buffer.writer_at(c_str.len()), " COMMERCIAL AT")?;
+//! assert_eq!(buffer.slice_to_terminator('\0'), "&#x40; COMMERCIAL AT");
+//! # assert_eq!(buffer, "&#x40; COMMERCIAL AT\0\0\0\0");
 //! # Ok::<_, core::fmt::Error>(())
 //! ```
 //!
