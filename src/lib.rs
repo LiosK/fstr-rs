@@ -57,7 +57,7 @@
 //!
 //! ```rust
 //! # use fstr::FStr;
-//! let mut buffer = FStr::<24>::from_format_args(format_args!("&#x{:x};", b'@'), b'\0').unwrap();
+//! let mut buffer = FStr::<24>::from_format_args(format_args!("&#x{:x};", b'@'), b'\0')?;
 //! assert_eq!(buffer, "&#x40;\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
 //!
 //! let c_str = buffer.slice_to_terminator('\0');
@@ -410,9 +410,9 @@ impl<const N: usize> FStr<N> {
     /// let x = FStr::<10>::from_format_args(format_args!("  {:04x}  ", 0x42), b'\0')?;
     /// assert_eq!(x.slice_to_terminator('\0'), "  0042  ");
     /// assert_eq!(x, "  0042  \0\0");
-    /// # Ok::<_, fstr::FormatError>(())
+    /// # Ok::<_, core::fmt::Error>(())
     /// ```
-    pub fn from_format_args(args: fmt::Arguments<'_>, filler: u8) -> Result<Self, FormatError> {
+    pub fn from_format_args(args: fmt::Arguments<'_>, filler: u8) -> Result<Self, fmt::Error> {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
 
         struct FmtWriter<'s>(&'s mut [mem::MaybeUninit<u8>]);
@@ -449,7 +449,7 @@ impl<const N: usize> FStr<N> {
         } else {
             // not dropping partially written data because:
             const _STATIC_ASSERT: () = assert!(!mem::needs_drop::<u8>(), "u8 never needs drop");
-            Err(FormatError { limit: N })
+            Err(fmt::Error)
         }
     }
 }
@@ -695,24 +695,10 @@ impl fmt::Display for FromSliceError {
     }
 }
 
-/// An error creating [`FStr<N>`] from [`fmt::Arguments`].
-///
-/// [`FStr::from_format_args`] reports this error if the formatted string is longer than `N` bytes.
-#[derive(Debug)]
-pub struct FormatError {
-    limit: usize,
-}
-
-impl fmt::Display for FormatError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "formatted string was longer than {} bytes", self.limit)
-    }
-}
-
 #[cfg(feature = "std")]
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 mod with_std {
-    use super::{FStr, FormatError, FromSliceError, FromSliceErrorKind, LengthError};
+    use super::{FStr, FromSliceError, FromSliceErrorKind, LengthError};
 
     impl<const N: usize> From<FStr<N>> for String {
         fn from(value: FStr<N>) -> Self {
@@ -750,8 +736,6 @@ mod with_std {
             }
         }
     }
-
-    impl std::error::Error for FormatError {}
 }
 
 #[cfg(test)]
