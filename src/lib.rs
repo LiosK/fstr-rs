@@ -359,8 +359,8 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(c, "----++......");
     /// # Ok::<_, core::fmt::Error>(())
     /// ```
-    pub fn writer(&mut self) -> Writer<'_> {
-        Writer(self.as_mut_str())
+    pub fn writer(&mut self) -> Cursor<&mut Self> {
+        Cursor::with_position(0, self).unwrap()
     }
 
     /// Returns a writer that starts at an `index`.
@@ -383,8 +383,8 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(x, "..0x000042!.");
     /// # Ok::<_, core::fmt::Error>(())
     /// ```
-    pub fn writer_at(&mut self, index: usize) -> Writer<'_> {
-        Writer(&mut self[index..])
+    pub fn writer_at(&mut self, index: usize) -> Cursor<&mut Self> {
+        Cursor::with_position(index, self).expect("index must point to char boundary")
     }
 
     /// Creates a value from [`fmt::Arguments`], with `filler` bytes appended if the formatted
@@ -415,9 +415,9 @@ impl<const N: usize> FStr<N> {
     pub fn from_format_args(args: fmt::Arguments<'_>, filler: u8) -> Result<Self, fmt::Error> {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
 
-        struct FmtWriter<'s>(&'s mut [mem::MaybeUninit<u8>]);
+        struct Writer<'s>(&'s mut [mem::MaybeUninit<u8>]);
 
-        impl fmt::Write for FmtWriter<'_> {
+        impl fmt::Write for Writer<'_> {
             fn write_str(&mut self, s: &str) -> fmt::Result {
                 if s.len() <= self.0.len() {
                     let written;
@@ -435,7 +435,7 @@ impl<const N: usize> FStr<N> {
 
         const ELEMENT: mem::MaybeUninit<u8> = mem::MaybeUninit::uninit();
         let mut inner = [ELEMENT; N];
-        let mut w = FmtWriter(inner.as_mut_slice());
+        let mut w = Writer(inner.as_mut_slice());
         if fmt::Write::write_fmt(&mut w, args).is_ok() {
             w.0.fill(mem::MaybeUninit::new(filler)); // initialize remaining part with `filler`s
 
@@ -606,52 +606,80 @@ impl<const N: usize> TryFrom<&[u8]> for FStr<N> {
     }
 }
 
-/// A writer structure returned by [`FStr::writer`] and [`FStr::writer_at`].
+/// A cursor-like writer structure returned by [`FStr::writer`] and [`FStr::writer_at`].
 ///
 /// See the `FStr::writer` documentation for the detailed behavior of this type's [`fmt::Write`]
 /// implementation.
+///
+/// # Examples
+///
+/// ```rust
+/// # use fstr::FStr;
+/// use core::fmt::Write as _;
+///
+/// let mut buffer = FStr::<20>::from_ascii_filler(b'.');
+/// assert_eq!(buffer, "....................");
+///
+/// let mut cursor = buffer.writer();
+/// assert_eq!(cursor.position(), 0);
+/// assert_eq!(&cursor.get_ref()[..], "....................");
+///
+/// write!(cursor, "gentle")?;
+/// assert_eq!(cursor.position(), 6);
+/// assert_eq!(&cursor.get_ref()[..], "gentle..............");
+///
+/// write!(cursor, " flamingo")?;
+/// assert_eq!(cursor.position(), 15);
+/// assert_eq!(&cursor.get_ref()[..], "gentle flamingo.....");
+///
+/// assert_eq!(
+///     cursor.get_ref().split_at(cursor.position()),
+///     ("gentle flamingo", ".....")
+/// );
+///
+/// assert_eq!(buffer, "gentle flamingo.....");
+/// # Ok::<_, core::fmt::Error>(())
+/// ```
 #[derive(Debug)]
-pub struct Writer<'s>(&'s mut str);
+pub struct Cursor<T> {
+    inner: T,
+    pos: usize,
+}
 
-impl Writer<'_> {
-    /// Returns the size (in bytes) of the remaining buffer.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use fstr::FStr;
-    /// use core::fmt::Write as _;
-    ///
-    /// let mut x = FStr::<8>::from_ascii_filler(b'.');
-    /// let mut w = x.writer();
-    /// assert_eq!(w.capacity(), 8);
-    /// w.write_str("----")?;
-    /// assert_eq!(w.capacity(), 4);
-    /// w.write_str("🫠")?;
-    /// assert_eq!(w.capacity(), 0);
-    /// # Ok::<_, core::fmt::Error>(())
-    /// ```
-    pub fn capacity(&self) -> usize {
-        self.0.len()
+impl<T> Cursor<T> {
+    /// Gets a reference to the underlying value in this cursor.
+    pub fn get_ref(&self) -> &T {
+        &self.inner
+    }
+
+    // no get_mut() because unmanaged mutation may invalidate self.pos
+
+    /// Returns the current position of this cursor.
+    pub fn position(&self) -> usize {
+        self.pos
     }
 }
 
-impl fmt::Write for Writer<'_> {
+impl<T: AsRef<str>> Cursor<T> {
+    /// Creates a new cursor at the specified index.
+    fn with_position(pos: usize, inner: T) -> Option<Self> {
+        match inner.as_ref().is_char_boundary(pos) {
+            true => Some(Self { inner, pos }),
+            false => None,
+        }
+    }
+}
+
+impl<T: AsMut<str>> fmt::Write for Cursor<T> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        // This writer works similarly to the `std::io::Write` implementation for `&mut [u8]`,
-        // except that this writer writes nothing when it cannot write the entire `s` successfully.
-        if self.0.is_char_boundary(s.len()) {
-            let written;
-            (written, self.0) = mem::take(&mut self.0).split_at_mut(s.len());
-
-            // SAFETY: ok because it copies a valid string slice from one location to another
-            unsafe { written.as_bytes_mut() }.copy_from_slice(s.as_bytes());
-
-            debug_assert!(str::from_utf8(written.as_bytes()).is_ok());
-            debug_assert!(str::from_utf8(self.0.as_bytes()).is_ok());
-            Ok(())
-        } else {
-            Err(fmt::Error)
+        match self.inner.as_mut().get_mut(self.pos..(self.pos + s.len())) {
+            Some(written) => {
+                // SAFETY: ok because it copies a valid string slice from one location to another
+                unsafe { written.as_bytes_mut() }.copy_from_slice(s.as_bytes());
+                self.pos += written.len();
+                Ok(())
+            }
+            None => Err(fmt::Error),
         }
     }
 }
@@ -846,7 +874,7 @@ mod tests {
         assert!(FStr::<9>::try_from([0xff; 8].as_slice()).is_err());
     }
 
-    /// Tests `fmt::Write` implementation of `Writer`.
+    /// Tests `fmt::Write` implementation of `Cursor`.
     #[test]
     fn write_str() {
         use core::fmt::Write as _;
