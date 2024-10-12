@@ -56,7 +56,7 @@ Variable-length string operations are partially supported by utilizing a C-style
 buffer and some helper methods.
 
 ```rust
-let mut buffer = FStr::<24>::from_format_args(format_args!("&#x{:x};", b'@'), b'\0')?;
+let mut buffer = FStr::<24>::from_fmt(format_args!("&#x{:x};", b'@'), b'\0')?;
 assert_eq!(buffer, "&#x40;\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
 
 let c_str = buffer.slice_to_terminator('\0');

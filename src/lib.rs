@@ -57,7 +57,7 @@
 //!
 //! ```rust
 //! # use fstr::FStr;
-//! let mut buffer = FStr::<24>::from_format_args(format_args!("&#x{:x};", b'@'), b'\0')?;
+//! let mut buffer = FStr::<24>::from_fmt(format_args!("&#x{:x};", b'@'), b'\0')?;
 //! assert_eq!(buffer, "&#x40;\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
 //!
 //! let c_str = buffer.slice_to_terminator('\0');
@@ -390,10 +390,10 @@ impl<const N: usize> FStr<N> {
     /// Creates a value from [`fmt::Arguments`], with `filler` bytes appended if the formatted
     /// string is shorter than the type's length.
     ///
-    /// This function is different from [`FStr::from_str_lossy`] and [`FStr::writer`] in that it
-    /// does not truncate the formatted string or result in a partially written `FStr` value; when
-    /// it returns `Ok`, the result contains the complete content of the formatted string, with
-    /// `filler` bytes appended where necessary.
+    /// The behavior of this function is different from [`FStr::from_str_lossy`] and [`write!`]
+    /// over [`FStr::writer`] in that it does not truncate the formatted string or result in a
+    /// partially written `FStr` value; when it returns `Ok`, the result contains the complete
+    /// content of the formatted string, with `filler` bytes appended where necessary.
     ///
     /// # Errors
     ///
@@ -407,12 +407,12 @@ impl<const N: usize> FStr<N> {
     ///
     /// ```rust
     /// # use fstr::FStr;
-    /// let x = FStr::<10>::from_format_args(format_args!("  {:04x}  ", 0x42), b'\0')?;
+    /// let x = FStr::<10>::from_fmt(format_args!("  {:04x}  ", 0x42), b'\0')?;
     /// assert_eq!(x.slice_to_terminator('\0'), "  0042  ");
     /// assert_eq!(x, "  0042  \0\0");
     /// # Ok::<_, core::fmt::Error>(())
     /// ```
-    pub fn from_format_args(args: fmt::Arguments<'_>, filler: u8) -> Result<Self, fmt::Error> {
+    pub fn from_fmt(args: fmt::Arguments<'_>, filler: u8) -> Result<Self, fmt::Error> {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
 
         struct Writer<'s>(&'s mut [mem::MaybeUninit<u8>]);
@@ -486,7 +486,7 @@ impl<const N: usize> Default for FStr<N> {
 impl<const N: usize> fmt::Debug for FStr<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct(
-            match FStr::<32>::from_format_args(format_args!("FStr<{}>", N), b'\0') {
+            match FStr::<32>::from_fmt(format_args!("FStr<{}>", N), b'\0') {
                 Ok(ref buffer) => buffer.slice_to_terminator('\0'),
                 Err(_) => "FStr",
             },
@@ -979,32 +979,26 @@ mod tests {
         assert_eq!(format!("{:^9.3}", b), "   jun   ");
     }
 
-    /// Tests `from_format_args()`.
+    /// Tests `from_fmt()`.
     #[test]
-    fn from_format_args() {
+    fn from_fmt() {
         let args = format_args!("vanilla");
-        assert!(FStr::<5>::from_format_args(args, b' ').is_err());
-        assert_eq!(FStr::<7>::from_format_args(args, b' ').unwrap(), "vanilla");
-        assert_eq!(
-            FStr::<9>::from_format_args(args, b' ').unwrap(),
-            "vanilla  "
-        );
+        assert!(FStr::<5>::from_fmt(args, b' ').is_err());
+        assert_eq!(FStr::<7>::from_fmt(args, b' ').unwrap(), "vanilla");
+        assert_eq!(FStr::<9>::from_fmt(args, b' ').unwrap(), "vanilla  ");
 
         assert_eq!(
-            FStr::<20>::from_format_args(format_args!("{:^6}", "😂🤪😱👻"), b'.').unwrap(),
+            FStr::<20>::from_fmt(format_args!("{:^6}", "😂🤪😱👻"), b'.').unwrap(),
             " 😂🤪😱👻 .."
         );
 
         assert_eq!(
-            FStr::<12>::from_format_args(format_args!("{:04}/{:04}", 42, 334), b'\0').unwrap(),
+            FStr::<12>::from_fmt(format_args!("{:04}/{:04}", 42, 334), b'\0').unwrap(),
             "0042/0334\0\0\0"
         );
 
-        assert_eq!(
-            FStr::<0>::from_format_args(format_args!(""), b' ').unwrap(),
-            ""
-        );
-        assert!(FStr::<0>::from_format_args(format_args!(" "), b' ').is_err());
+        assert_eq!(FStr::<0>::from_fmt(format_args!(""), b' ').unwrap(), "");
+        assert!(FStr::<0>::from_fmt(format_args!(" "), b' ').is_err());
     }
 }
 
