@@ -1,8 +1,8 @@
 //! # FStr: a stack-allocated fixed-length string type
 //!
 //! This crate provides a thin wrapper for `[u8; N]` to handle a stack-allocated byte array as a
-//! fixed-length, [`String`]-like type through common traits such as `Display`, `PartialEq`, and
-//! `Deref<Target = str>`.
+//! fixed-length, [`String`]-like owned type through common traits including `Display`, `PartialEq`,
+//! and `Deref<Target = str>`.
 //!
 //! ```rust
 //! use fstr::FStr;
@@ -22,12 +22,12 @@
 //!
 //! const K: FStr<8> = FStr::from_str_unwrap("constant");
 //! assert_eq!(K, "constant");
-//! # Ok::<(), std::str::Utf8Error>(())
+//! # Ok::<_, core::str::Utf8Error>(())
 //! ```
 //!
 //! Unlike [`String`] and [`arrayvec::ArrayString`], this type has the same binary representation
 //! as the underlying `[u8; N]` and manages fixed-length strings only. The type parameter takes the
-//! exact length (in bytes) of a concrete type, and the concrete type only holds the string values
+//! exact length (in bytes) of a concrete type, and each concrete type only holds the string values
 //! of that size.
 //!
 //! [`arrayvec::ArrayString`]: https://docs.rs/arrayvec/latest/arrayvec/struct.ArrayString.html
@@ -57,16 +57,17 @@
 //!
 //! ```rust
 //! # use fstr::FStr;
-//! let mut buffer = FStr::<20>::from_str_lossy("haste", b'\0');
-//! assert_eq!(buffer, "haste\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+//! let mut buffer = FStr::<24>::from_fmt(format_args!("&#x{:x};", b'@'), b'\0')?;
+//! assert_eq!(buffer, "&#x40;\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
 //!
 //! let c_str = buffer.slice_to_terminator('\0');
-//! assert_eq!(c_str, "haste");
+//! assert_eq!(c_str, "&#x40;");
 //!
 //! use core::fmt::Write as _;
-//! write!(buffer.writer_at(c_str.len()), " makes waste")?;
-//! assert_eq!(buffer.slice_to_terminator('\0'), "haste makes waste");
-//! # Ok::<(), core::fmt::Error>(())
+//! write!(buffer.writer_at(c_str.len()), " COMMERCIAL AT")?;
+//! assert_eq!(buffer.slice_to_terminator('\0'), "&#x40; COMMERCIAL AT");
+//! # assert_eq!(buffer, "&#x40; COMMERCIAL AT\0\0\0\0");
+//! # Ok::<_, core::fmt::Error>(())
 //! ```
 //!
 //! ## Crate features
@@ -136,7 +137,7 @@ impl<const N: usize> FStr<N> {
     /// # use fstr::FStr;
     /// let x = FStr::from_inner(*b"foo")?;
     /// assert_eq!(x, "foo");
-    /// # Ok::<(), std::str::Utf8Error>(())
+    /// # Ok::<_, core::str::Utf8Error>(())
     /// ```
     pub const fn from_inner(utf8_bytes: [u8; N]) -> Result<Self, str::Utf8Error> {
         match str::from_utf8(&utf8_bytes) {
@@ -212,9 +213,9 @@ impl<const N: usize> FStr<N> {
 
     /// Creates a value from an arbitrary string but truncates or stretches the content.
     ///
-    /// This function appends the `filler` bytes to the end if the argument is shorter than the
-    /// type's length. The `filler` byte must be within the ASCII range. The argument is truncated,
-    /// if longer, at the closest character boundary to the type's length, with the `filler` bytes
+    /// This function appends `filler` bytes to the end if the argument is shorter than the type's
+    /// length. The `filler` byte must be within the ASCII range. The argument is truncated, if
+    /// longer, at the closest character boundary to the type's length, with `filler` bytes
     /// appended where necessary.
     ///
     /// # Panics
@@ -271,7 +272,7 @@ impl<const N: usize> FStr<N> {
         unsafe { Self::from_inner_unchecked(inner) }
     }
 
-    /// Creates a value by repeating an ASCII byte `N` times.
+    /// Creates a value that is filled with an ASCII byte.
     ///
     /// # Panics
     ///
@@ -281,14 +282,21 @@ impl<const N: usize> FStr<N> {
     ///
     /// ```rust
     /// # use fstr::FStr;
-    /// assert_eq!(FStr::<3>::repeat(b'.'), "...");
-    /// assert_eq!(FStr::<5>::repeat(b'-'), "-----");
-    /// # assert_eq!(FStr::<0>::repeat(b'\0'), "");
+    /// assert_eq!(FStr::<3>::from_ascii_filler(b'.'), "...");
+    /// assert_eq!(FStr::<5>::from_ascii_filler(b'-'), "-----");
+    /// # assert_eq!(FStr::<0>::from_ascii_filler(b'\0'), "");
     /// ```
-    pub const fn repeat(filler: u8) -> Self {
+    pub const fn from_ascii_filler(filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
         // SAFETY: ok because the array consists of ASCII bytes only
         unsafe { Self::from_inner_unchecked([filler; N]) }
+    }
+
+    /// A deprecated synonym for [`FStr::from_ascii_filler`] retained for backward compatibility.
+    #[doc(hidden)]
+    #[deprecated(since = "0.2.12", note = "renamed to `from_ascii_filler`")]
+    pub const fn repeat(filler: u8) -> Self {
+        Self::from_ascii_filler(filler)
     }
 
     /// Returns a substring from the beginning to the specified terminator (if found) or to the end
@@ -308,7 +316,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(x.slice_to_terminator('\n'), "quick brown fox");
     /// assert_eq!(x.slice_to_terminator('🦊'), "quick brown fox\n");
     /// # assert_eq!(FStr::from_inner([])?.slice_to_terminator(' '), "");
-    /// # Ok::<(), std::str::Utf8Error>(())
+    /// # Ok::<_, core::str::Utf8Error>(())
     /// ```
     pub fn slice_to_terminator(&self, terminator: char) -> &str {
         match self.find(terminator) {
@@ -331,14 +339,14 @@ impl<const N: usize> FStr<N> {
     /// # use fstr::FStr;
     /// use core::fmt::Write as _;
     ///
-    /// let mut a = FStr::<12>::repeat(b'.');
+    /// let mut a = FStr::<12>::from_ascii_filler(b'.');
     /// write!(a.writer(), "0x{:06x}!", 0x42)?;
     /// assert_eq!(a, "0x000042!...");
     ///
-    /// let mut b = FStr::<12>::repeat(b'.');
+    /// let mut b = FStr::<12>::from_ascii_filler(b'.');
     /// assert!(write!(b.writer(), "{:016}", 1).is_err()); // buffer overflow
     ///
-    /// let mut c = FStr::<12>::repeat(b'.');
+    /// let mut c = FStr::<12>::from_ascii_filler(b'.');
     /// let mut w = c.writer();
     /// write!(w, "🥺")?;
     /// write!(w, "++")?;
@@ -349,10 +357,10 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(c, "🥺++......");
     /// c.writer().write_str("----")?;
     /// assert_eq!(c, "----++......");
-    /// # Ok::<(), core::fmt::Error>(())
+    /// # Ok::<_, core::fmt::Error>(())
     /// ```
-    pub fn writer(&mut self) -> impl fmt::Write + fmt::Debug + '_ {
-        Writer(self.as_mut_str())
+    pub fn writer(&mut self) -> Cursor<&mut Self> {
+        Cursor::with_position(0, self).unwrap()
     }
 
     /// Returns a writer that starts at an `index`.
@@ -370,13 +378,79 @@ impl<const N: usize> FStr<N> {
     /// # use fstr::FStr;
     /// use core::fmt::Write as _;
     ///
-    /// let mut x = FStr::<12>::repeat(b'.');
+    /// let mut x = FStr::<12>::from_ascii_filler(b'.');
     /// write!(x.writer_at(2), "0x{:06x}!", 0x42)?;
     /// assert_eq!(x, "..0x000042!.");
-    /// # Ok::<(), core::fmt::Error>(())
+    /// # Ok::<_, core::fmt::Error>(())
     /// ```
-    pub fn writer_at(&mut self, index: usize) -> impl fmt::Write + fmt::Debug + '_ {
-        Writer(&mut self[index..])
+    pub fn writer_at(&mut self, index: usize) -> Cursor<&mut Self> {
+        Cursor::with_position(index, self).expect("index must point to char boundary")
+    }
+
+    /// Creates a value from [`fmt::Arguments`], with `filler` bytes appended if the formatted
+    /// string is shorter than the type's length.
+    ///
+    /// The behavior of this function is different from [`FStr::from_str_lossy`] and [`write!`]
+    /// over [`FStr::writer`] in that it does not truncate the formatted string or result in a
+    /// partially written `FStr` value; when it returns `Ok`, the result contains the complete
+    /// content of the formatted string, with `filler` bytes appended where necessary.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if the formatted string is longer than the type's length.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `filler` is out of the ASCII range.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use fstr::FStr;
+    /// let x = FStr::<10>::from_fmt(format_args!("  {:04x}  ", 0x42), b'\0')?;
+    /// assert_eq!(x.slice_to_terminator('\0'), "  0042  ");
+    /// assert_eq!(x, "  0042  \0\0");
+    /// # Ok::<_, core::fmt::Error>(())
+    /// ```
+    pub fn from_fmt(args: fmt::Arguments<'_>, filler: u8) -> Result<Self, fmt::Error> {
+        assert!(filler.is_ascii(), "filler byte must represent ASCII char");
+
+        struct Writer<'s>(&'s mut [mem::MaybeUninit<u8>]);
+
+        impl fmt::Write for Writer<'_> {
+            fn write_str(&mut self, s: &str) -> fmt::Result {
+                if s.len() <= self.0.len() {
+                    let written;
+                    (written, self.0) = mem::take(&mut self.0).split_at_mut(s.len());
+                    // SAFETY: ok because &[T] and &[MaybeUninit<T>] have the same layout
+                    written.copy_from_slice(unsafe {
+                        mem::transmute::<&[u8], &[mem::MaybeUninit<u8>]>(s.as_bytes())
+                    });
+                    Ok(())
+                } else {
+                    Err(fmt::Error)
+                }
+            }
+        }
+
+        const ELEMENT: mem::MaybeUninit<u8> = mem::MaybeUninit::uninit();
+        let mut inner = [ELEMENT; N];
+        let mut w = Writer(inner.as_mut_slice());
+        if fmt::Write::write_fmt(&mut w, args).is_ok() {
+            w.0.fill(mem::MaybeUninit::new(filler)); // initialize remaining part with `filler`s
+
+            // SAFETY: ok because [T; N] and [MaybeUninit<T>; N] have the same size and layout and
+            // the entire array has been initialized with valid `&str`s and ASCII `filler`s
+            Ok(unsafe {
+                Self::from_inner_unchecked(
+                    mem::transmute_copy::<[mem::MaybeUninit<u8>; N], [u8; N]>(&inner),
+                )
+            })
+        } else {
+            // not dropping partially written data because:
+            const _STATIC_ASSERT: () = assert!(!mem::needs_drop::<u8>(), "u8 never needs drop");
+            Err(fmt::Error)
+        }
     }
 }
 
@@ -395,7 +469,7 @@ impl<const N: usize> ops::DerefMut for FStr<N> {
 }
 
 impl<const N: usize> Default for FStr<N> {
-    /// Returns a fixed-length string value filled by white spaces (`U+0020`).
+    /// Returns a fixed-length string value filled with white spaces (`U+0020`).
     ///
     /// # Examples
     ///
@@ -405,20 +479,20 @@ impl<const N: usize> Default for FStr<N> {
     /// assert_eq!(FStr::<8>::default(), "        ");
     /// ```
     fn default() -> Self {
-        Self::repeat(b' ')
+        Self::from_ascii_filler(b' ')
     }
 }
 
 impl<const N: usize> fmt::Debug for FStr<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use fmt::Write as _;
-        let mut buffer = FStr::<32>::repeat(b'\0');
-        let name = if write!(buffer.writer(), "FStr<{}>", N).is_ok() {
-            buffer.slice_to_terminator('\0')
-        } else {
-            "FStr"
-        };
-        f.debug_struct(name).field("inner", &self.as_str()).finish()
+        f.debug_struct(
+            match FStr::<32>::from_fmt(format_args!("FStr<{}>", N), b'\0') {
+                Ok(ref buffer) => buffer.slice_to_terminator('\0'),
+                Err(_) => "FStr", // unreachable
+            },
+        )
+        .field("inner", &self.as_str())
+        .finish()
     }
 }
 
@@ -532,26 +606,80 @@ impl<const N: usize> TryFrom<&[u8]> for FStr<N> {
     }
 }
 
-/// A writer structure returned by [`FStr::writer`] and [`FStr::writer_at`].
+/// A cursor-like writer structure returned by [`FStr::writer`] and [`FStr::writer_at`].
+///
+/// See the `FStr::writer` documentation for the detailed behavior of this type's [`fmt::Write`]
+/// implementation.
+///
+/// # Examples
+///
+/// ```rust
+/// # use fstr::FStr;
+/// use core::fmt::Write as _;
+///
+/// let mut buffer = FStr::<20>::from_ascii_filler(b'.');
+/// assert_eq!(buffer, "....................");
+///
+/// let mut cursor = buffer.writer();
+/// assert_eq!(cursor.position(), 0);
+/// assert_eq!(&cursor.get_ref()[..], "....................");
+///
+/// write!(cursor, "gentle")?;
+/// assert_eq!(cursor.position(), 6);
+/// assert_eq!(&cursor.get_ref()[..], "gentle..............");
+///
+/// write!(cursor, " flamingo")?;
+/// assert_eq!(cursor.position(), 15);
+/// assert_eq!(&cursor.get_ref()[..], "gentle flamingo.....");
+///
+/// assert_eq!(
+///     cursor.get_ref().split_at(cursor.position()),
+///     ("gentle flamingo", ".....")
+/// );
+///
+/// assert_eq!(buffer, "gentle flamingo.....");
+/// # Ok::<_, core::fmt::Error>(())
+/// ```
 #[derive(Debug)]
-struct Writer<'s>(&'s mut str);
+pub struct Cursor<T> {
+    inner: T,
+    pos: usize,
+}
 
-impl<'s> fmt::Write for Writer<'s> {
+impl<T> Cursor<T> {
+    /// Gets a reference to the underlying value in this cursor.
+    pub fn get_ref(&self) -> &T {
+        &self.inner
+    }
+
+    // no get_mut() because unmanaged mutation may invalidate self.pos
+
+    /// Returns the current position of this cursor.
+    pub fn position(&self) -> usize {
+        self.pos
+    }
+}
+
+impl<T: AsRef<str>> Cursor<T> {
+    /// Creates a new cursor at the specified index.
+    fn with_position(pos: usize, inner: T) -> Option<Self> {
+        match inner.as_ref().is_char_boundary(pos) {
+            true => Some(Self { inner, pos }),
+            false => None,
+        }
+    }
+}
+
+impl<T: AsMut<str>> fmt::Write for Cursor<T> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        // This writer works similarly to the `std::io::Write` implementation for `&mut [u8]`,
-        // except that this writer writes nothing when it cannot write the entire `s` successfully.
-        if self.0.is_char_boundary(s.len()) {
-            let written;
-            (written, self.0) = mem::take(&mut self.0).split_at_mut(s.len());
-
-            // SAFETY: ok because it copies a valid string slice from one location to another
-            unsafe { written.as_bytes_mut() }.copy_from_slice(s.as_bytes());
-
-            debug_assert!(str::from_utf8(written.as_bytes()).is_ok());
-            debug_assert!(str::from_utf8(self.0.as_bytes()).is_ok());
-            Ok(())
-        } else {
-            Err(fmt::Error)
+        match self.inner.as_mut().get_mut(self.pos..(self.pos + s.len())) {
+            Some(written) => {
+                // SAFETY: ok because `written` and `s` are valid string slices of the same length
+                unsafe { written.as_bytes_mut() }.copy_from_slice(s.as_bytes());
+                self.pos += written.len();
+                Ok(())
+            }
+            None => Err(fmt::Error),
         }
     }
 }
@@ -597,7 +725,7 @@ impl fmt::Display for FromSliceError {
 
 #[cfg(feature = "std")]
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
-mod std_integration {
+mod with_std {
     use super::{FStr, FromSliceError, FromSliceErrorKind, LengthError};
 
     impl<const N: usize> From<FStr<N>> for String {
@@ -746,24 +874,24 @@ mod tests {
         assert!(FStr::<9>::try_from([0xff; 8].as_slice()).is_err());
     }
 
-    /// Tests `fmt::Write` implementation of `Writer`.
+    /// Tests `fmt::Write` implementation of `Cursor`.
     #[test]
     fn write_str() {
         use core::fmt::Write as _;
 
-        let mut a = FStr::<5>::repeat(b' ');
+        let mut a = FStr::<5>::from_ascii_filler(b' ');
         assert!(write!(a.writer(), "vanilla").is_err());
         assert_eq!(a, "     ");
 
-        let mut b = FStr::<7>::repeat(b' ');
+        let mut b = FStr::<7>::from_ascii_filler(b' ');
         assert!(write!(b.writer(), "vanilla").is_ok());
         assert_eq!(b, "vanilla");
 
-        let mut c = FStr::<9>::repeat(b' ');
+        let mut c = FStr::<9>::from_ascii_filler(b' ');
         assert!(write!(c.writer(), "vanilla").is_ok());
         assert_eq!(c, "vanilla  ");
 
-        let mut d = FStr::<16>::repeat(b'.');
+        let mut d = FStr::<16>::from_ascii_filler(b'.');
         assert!(write!(d.writer(), "😂🤪😱👻").is_ok());
         assert_eq!(d, "😂🤪😱👻");
         assert!(write!(d.writer(), "🔥").is_ok());
@@ -773,7 +901,7 @@ mod tests {
         assert!(write!(d.writer(), ".").is_err());
         assert_eq!(d, "🥺😭😱👻");
 
-        let mut e = FStr::<12>::repeat(b' ');
+        let mut e = FStr::<12>::from_ascii_filler(b' ');
         assert!(write!(e.writer(), "{:04}/{:04}", 42, 334).is_ok());
         assert_eq!(e, "0042/0334   ");
 
@@ -850,10 +978,33 @@ mod tests {
         assert_eq!(format!("{:>8.3}", b), "     jun");
         assert_eq!(format!("{:^9.3}", b), "   jun   ");
     }
+
+    /// Tests `from_fmt()`.
+    #[test]
+    fn from_fmt() {
+        let args = format_args!("vanilla");
+        assert!(FStr::<5>::from_fmt(args, b' ').is_err());
+        assert_eq!(FStr::<7>::from_fmt(args, b' ').unwrap(), "vanilla");
+        assert_eq!(FStr::<9>::from_fmt(args, b' ').unwrap(), "vanilla  ");
+
+        assert_eq!(
+            FStr::<20>::from_fmt(format_args!("{:^6}", "😂🤪😱👻"), b'.').unwrap(),
+            " 😂🤪😱👻 .."
+        );
+
+        assert_eq!(
+            FStr::<12>::from_fmt(format_args!("{:04}/{:04}", 42, 334), b'\0').unwrap(),
+            "0042/0334\0\0\0"
+        );
+
+        assert_eq!(FStr::<0>::from_fmt(format_args!(""), b' ').unwrap(), "");
+        assert!(FStr::<0>::from_fmt(format_args!(" "), b' ').is_err());
+    }
 }
 
 #[cfg(feature = "serde")]
-mod serde_integration {
+#[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+mod with_serde {
     use super::{fmt, FStr};
     use serde::{de, Deserializer, Serializer};
 
@@ -871,7 +1022,7 @@ mod serde_integration {
 
     struct VisitorImpl<const N: usize>;
 
-    impl<'de, const N: usize> de::Visitor<'de> for VisitorImpl<N> {
+    impl<const N: usize> de::Visitor<'_> for VisitorImpl<N> {
         type Value = FStr<N>;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
