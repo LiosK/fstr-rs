@@ -488,7 +488,7 @@ impl<const N: usize> fmt::Debug for FStr<N> {
         f.debug_struct(
             match FStr::<32>::from_fmt(format_args!("FStr<{}>", N), b'\0') {
                 Ok(ref buffer) => buffer.slice_to_terminator('\0'),
-                Err(_) => "FStr",
+                Err(_) => "FStr", // unreachable
             },
         )
         .field("inner", &self.as_str())
@@ -674,7 +674,7 @@ impl<T: AsMut<str>> fmt::Write for Cursor<T> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         match self.inner.as_mut().get_mut(self.pos..(self.pos + s.len())) {
             Some(written) => {
-                // SAFETY: ok because it copies a valid string slice from one location to another
+                // SAFETY: ok because `written` and `s` are valid string slices of the same length
                 unsafe { written.as_bytes_mut() }.copy_from_slice(s.as_bytes());
                 self.pos += written.len();
                 Ok(())
