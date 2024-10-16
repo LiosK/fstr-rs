@@ -1,6 +1,6 @@
 //! # FStr: a stack-allocated fixed-length string type
 //!
-//! This crate provides a thin wrapper for `[u8; N]` to handle a stack-allocated byte array as a
+//! This crate provides a new type wrapping `[u8; N]` to handle a stack-allocated byte array as a
 //! fixed-length, [`String`]-like owned type through common traits including `Display`, `PartialEq`,
 //! and `Deref<Target = str>`.
 //!
@@ -25,10 +25,10 @@
 //! # Ok::<_, core::str::Utf8Error>(())
 //! ```
 //!
-//! Unlike [`String`] and [`arrayvec::ArrayString`], this type has the same binary representation
-//! as the underlying `[u8; N]` and manages fixed-length strings only. The type parameter takes the
-//! exact length (in bytes) of a concrete type, and each concrete type only holds the string values
-//! of that size.
+//! Unlike [`String`] and [`arrayvec::ArrayString`], which keep track of the length of the stored
+//! string, this type has the same binary representation as the underlying `[u8; N]` and, therefore,
+//! can only manage fixed-length strings. The type parameter `N` specifies the exact length (in
+//! bytes) of a concrete type, and each concrete type holds only string values of that size.
 //!
 //! [`arrayvec::ArrayString`]: https://docs.rs/arrayvec/latest/arrayvec/struct.ArrayString.html
 //!
