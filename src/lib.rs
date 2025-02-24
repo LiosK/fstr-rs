@@ -325,48 +325,20 @@ impl<const N: usize> FStr<N> {
         }
     }
 
+    /// A deprecated synonym for `FStr::writer_at(0)` retained for backward compatibility.
+    #[doc(hidden)]
+    #[deprecated(since = "0.2.13", note = "use `writer_at(0)` instead")]
+    pub fn writer(&mut self) -> Cursor<&mut Self> {
+        self.writer_at(0)
+    }
+
     /// Returns a writer that writes `&str` into `self` through the [`fmt::Write`] trait.
     ///
-    /// The writer starts at the beginning of `self` and overwrites the existing content as
+    /// The writer starts at the specified `index` of `self` and overwrites the existing content as
     /// `write_str` is called. This writer fails if too many bytes would be written. It also fails
     /// when a `write_str` call would result in an invalid UTF-8 sequence by destroying an existing
     /// multi-byte character. Due to the latter limitation, this writer is not very useful unless
     /// `self` is filled with ASCII bytes only.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use fstr::FStr;
-    /// use core::fmt::Write as _;
-    ///
-    /// let mut a = FStr::<12>::from_ascii_filler(b'.');
-    /// write!(a.writer(), "0x{:06x}!", 0x42)?;
-    /// assert_eq!(a, "0x000042!...");
-    ///
-    /// let mut b = FStr::<12>::from_ascii_filler(b'.');
-    /// assert!(write!(b.writer(), "{:016}", 1).is_err()); // buffer overflow
-    ///
-    /// let mut c = FStr::<12>::from_ascii_filler(b'.');
-    /// let mut w = c.writer();
-    /// write!(w, "🥺")?;
-    /// write!(w, "++")?;
-    /// drop(w);
-    /// assert_eq!(c, "🥺++......");
-    ///
-    /// assert!(c.writer().write_str("++").is_err()); // invalid UTF-8 sequence
-    /// assert_eq!(c, "🥺++......");
-    /// c.writer().write_str("----")?;
-    /// assert_eq!(c, "----++......");
-    /// # Ok::<_, core::fmt::Error>(())
-    /// ```
-    pub fn writer(&mut self) -> Cursor<&mut Self> {
-        Cursor::with_position(0, self).unwrap()
-    }
-
-    /// Returns a writer that starts at an `index`.
-    ///
-    /// This method creates the same writer as does [`FStr::writer`] but allows it to start at an
-    /// arbitrary position.
     ///
     /// # Panics
     ///
@@ -378,9 +350,27 @@ impl<const N: usize> FStr<N> {
     /// # use fstr::FStr;
     /// use core::fmt::Write as _;
     ///
-    /// let mut x = FStr::<12>::from_ascii_filler(b'.');
-    /// write!(x.writer_at(2), "0x{:06x}!", 0x42)?;
-    /// assert_eq!(x, "..0x000042!.");
+    /// let mut a = FStr::<12>::from_ascii_filler(b'.');
+    /// write!(a.writer_at(0), "0x{:06x}!", 0x42)?;
+    /// assert_eq!(a, "0x000042!...");
+    ///
+    /// let mut b = FStr::<12>::from_ascii_filler(b'.');
+    /// write!(b.writer_at(2), "0x{:06x}!", 0x42)?;
+    /// assert_eq!(b, "..0x000042!.");
+    ///
+    /// let mut c = FStr::<12>::from_ascii_filler(b'.');
+    /// assert!(write!(c.writer_at(0), "{:016}", 1).is_err()); // buffer overflow
+    ///
+    /// let mut d = FStr::<12>::from_ascii_filler(b'.');
+    /// let mut w = d.writer_at(0);
+    /// write!(w, "🥺")?;
+    /// write!(w, "++")?;
+    /// assert_eq!(d, "🥺++......");
+    ///
+    /// assert!(d.writer_at(0).write_str("++").is_err()); // invalid UTF-8 sequence
+    /// assert_eq!(d, "🥺++......");
+    /// d.writer_at(0).write_str("----")?;
+    /// assert_eq!(d, "----++......");
     /// # Ok::<_, core::fmt::Error>(())
     /// ```
     pub fn writer_at(&mut self, index: usize) -> Cursor<&mut Self> {
@@ -391,7 +381,7 @@ impl<const N: usize> FStr<N> {
     /// string is shorter than the type's length.
     ///
     /// The behavior of this function is different from [`FStr::from_str_lossy`] and [`write!`]
-    /// over [`FStr::writer`] in that it does not truncate the formatted string or result in a
+    /// over [`FStr::writer_at`] in that it does not truncate the formatted string or result in a
     /// partially written `FStr` value; when it returns `Ok`, the result contains the complete
     /// content of the formatted string, with `filler` bytes appended where necessary.
     ///
@@ -606,9 +596,9 @@ impl<const N: usize> TryFrom<&[u8]> for FStr<N> {
     }
 }
 
-/// A cursor-like writer structure returned by [`FStr::writer`] and [`FStr::writer_at`].
+/// A cursor-like writer structure returned by [`FStr::writer_at`].
 ///
-/// See the `FStr::writer` documentation for the detailed behavior of this type's [`fmt::Write`]
+/// See the `FStr::writer_at` documentation for the detailed behavior of this type's [`fmt::Write`]
 /// implementation.
 ///
 /// # Examples
@@ -620,7 +610,7 @@ impl<const N: usize> TryFrom<&[u8]> for FStr<N> {
 /// let mut buffer = FStr::<20>::from_ascii_filler(b'.');
 /// assert_eq!(buffer, "....................");
 ///
-/// let mut cursor = buffer.writer();
+/// let mut cursor = buffer.writer_at(0);
 /// assert_eq!(cursor.position(), 0);
 /// assert_eq!(&cursor.get_ref()[..], "....................");
 ///
@@ -880,32 +870,32 @@ mod tests {
         use core::fmt::Write as _;
 
         let mut a = FStr::<5>::from_ascii_filler(b' ');
-        assert!(write!(a.writer(), "vanilla").is_err());
+        assert!(write!(a.writer_at(0), "vanilla").is_err());
         assert_eq!(a, "     ");
 
         let mut b = FStr::<7>::from_ascii_filler(b' ');
-        assert!(write!(b.writer(), "vanilla").is_ok());
+        assert!(write!(b.writer_at(0), "vanilla").is_ok());
         assert_eq!(b, "vanilla");
 
         let mut c = FStr::<9>::from_ascii_filler(b' ');
-        assert!(write!(c.writer(), "vanilla").is_ok());
+        assert!(write!(c.writer_at(0), "vanilla").is_ok());
         assert_eq!(c, "vanilla  ");
 
         let mut d = FStr::<16>::from_ascii_filler(b'.');
-        assert!(write!(d.writer(), "😂🤪😱👻").is_ok());
+        assert!(write!(d.writer_at(0), "😂🤪😱👻").is_ok());
         assert_eq!(d, "😂🤪😱👻");
-        assert!(write!(d.writer(), "🔥").is_ok());
+        assert!(write!(d.writer_at(0), "🔥").is_ok());
         assert_eq!(d, "🔥🤪😱👻");
-        assert!(write!(d.writer(), "🥺😭").is_ok());
+        assert!(write!(d.writer_at(0), "🥺😭").is_ok());
         assert_eq!(d, "🥺😭😱👻");
-        assert!(write!(d.writer(), ".").is_err());
+        assert!(write!(d.writer_at(0), ".").is_err());
         assert_eq!(d, "🥺😭😱👻");
 
         let mut e = FStr::<12>::from_ascii_filler(b' ');
-        assert!(write!(e.writer(), "{:04}/{:04}", 42, 334).is_ok());
+        assert!(write!(e.writer_at(0), "{:04}/{:04}", 42, 334).is_ok());
         assert_eq!(e, "0042/0334   ");
 
-        let mut w = e.writer();
+        let mut w = e.writer_at(0);
         assert!(write!(w, "{:02x}", 123).is_ok());
         assert!(write!(w, "-{:04x}", 345).is_ok());
         assert!(write!(w, "-{:04x}", 567).is_ok());
@@ -913,8 +903,8 @@ mod tests {
         drop(w);
         assert_eq!(e, "7b-0159-0237");
 
-        assert!(write!(FStr::<0>::default().writer(), "").is_ok());
-        assert!(write!(FStr::<0>::default().writer(), " ").is_err());
+        assert!(write!(FStr::<0>::default().writer_at(0), "").is_ok());
+        assert!(write!(FStr::<0>::default().writer_at(0), " ").is_err());
     }
 
     #[test]
