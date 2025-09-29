@@ -714,7 +714,6 @@ impl fmt::Display for FromSliceError {
 }
 
 #[cfg(feature = "std")]
-#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 mod with_std {
     use super::{FStr, FromSliceError, FromSliceErrorKind, LengthError};
 
@@ -993,7 +992,6 @@ mod tests {
 }
 
 #[cfg(feature = "serde")]
-#[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 mod with_serde {
     use super::{fmt, FStr};
     use serde::{de, Deserializer, Serializer};
