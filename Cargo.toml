@@ -4,6 +4,7 @@ version = "0.2.13"
 authors = ["LiosK <contact@mail.liosk.net>"]
 license = "Apache-2.0"
 edition = "2021"
+rust-version = "1.63"
 description = "A stack-allocated fixed-length string type"
 repository = "https://github.com/LiosK/fstr-rs"
 documentation = "https://docs.rs/fstr"
