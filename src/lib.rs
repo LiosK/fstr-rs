@@ -233,39 +233,21 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!("😂🤪😱👻".len(), 16);
     /// assert_eq!(FStr::<15>::from_str_lossy("😂🤪😱👻", b'.'), "😂🤪😱...");
     /// ```
-    pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
+    pub const fn from_str_lossy(mut s: &str, filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
 
-        // stable const equivalent of `s.floor_char_boundary(N)`
-        let len = if s.len() <= N {
-            s.len()
-        } else {
-            // locate last char boundary by skipping tail continuation bytes (`0b10xx_xxxx`)
+        if s.len() > N {
             let mut i = N;
-            while (s.as_bytes()[i] as i8) < -64 {
-                i -= 1;
-            }
-            i
-        };
+            s = loop {
+                match s.split_at_checked(i) {
+                    Some((a, _)) => break a,
+                    None => i -= 1,
+                }
+            };
+        }
 
-        let inner = if s.len() >= N {
-            // SAFETY: ok because `s.as_ptr()` is `*const u8` and `s.len() >= N`
-            let mut inner = unsafe { *s.as_ptr().cast::<[u8; N]>() };
-            let mut i = N;
-            while i > len {
-                i -= 1;
-                inner[i] = filler;
-            }
-            inner
-        } else {
-            let mut inner = [filler; N];
-            let mut i = len;
-            while i > 0 {
-                i -= 1;
-                inner[i] = s.as_bytes()[i];
-            }
-            inner
-        };
+        let mut inner = [filler; N];
+        inner.split_at_mut(s.len()).0.copy_from_slice(s.as_bytes());
 
         // SAFETY: ok because `s` is from a string slice (truncated at a char boundary, if
         // applicable) and `inner` consists of `s` and trailing ASCII fillers
@@ -423,8 +405,7 @@ impl<const N: usize> FStr<N> {
             }
         }
 
-        const ELEMENT: mem::MaybeUninit<u8> = mem::MaybeUninit::uninit();
-        let mut inner = [ELEMENT; N];
+        let mut inner = [const { mem::MaybeUninit::uninit() }; N];
         let mut w = Writer(inner.as_mut_slice());
         if fmt::Write::write_fmt(&mut w, args).is_ok() {
             w.0.fill(mem::MaybeUninit::new(filler)); // initialize remaining part with `filler`s
