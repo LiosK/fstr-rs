@@ -992,8 +992,8 @@ mod tests {
 
 #[cfg(feature = "serde")]
 mod with_serde {
-    use super::{fmt, FStr};
-    use serde::{de, Deserializer, Serializer};
+    use super::{FStr, fmt};
+    use serde::{Deserializer, Serializer, de};
 
     impl<const N: usize> serde::Serialize for FStr<N> {
         fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
