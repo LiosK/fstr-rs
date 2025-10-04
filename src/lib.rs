@@ -899,7 +899,6 @@ mod tests {
         assert!(write!(w, "-{:04x}", 345).is_ok());
         assert!(write!(w, "-{:04x}", 567).is_ok());
         assert!(write!(w, "-{:04x}", 789).is_err());
-        drop(w);
         assert_eq!(e, "7b-0159-0237");
 
         assert!(write!(FStr::<0>::default().writer_at(0), "").is_ok());
