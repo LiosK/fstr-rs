@@ -237,12 +237,18 @@ impl<const N: usize> FStr<N> {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
 
         if s.len() > N {
-            let mut i = N;
-            s = loop {
-                match s.split_at_checked(i) {
-                    Some((a, _)) => break a,
-                    None => i -= 1,
-                }
+            s = match s.split_at_checked(N) {
+                Some((a, _)) => a,
+                None => match s.split_at_checked(N - 1) {
+                    Some((a, _)) => a,
+                    None => match s.split_at_checked(N - 2) {
+                        Some((a, _)) => a,
+                        None => match s.split_at_checked(N - 3) {
+                            Some((a, _)) => a,
+                            None => unreachable!(), // Invalid UTF-8 sequence
+                        },
+                    },
+                },
             };
         }
 
