@@ -260,19 +260,22 @@ impl<const N: usize> FStr<N> {
                         Some((a, _)) => a,
                         None => match s.split_at_checked(N - 3) {
                             Some((a, _)) => a,
-                            None => unreachable!(), // Invalid UTF-8 sequence
+                            None => unreachable!(), // invalid UTF-8 sequence
                         },
                     },
                 },
             };
         }
 
-        let mut inner = [filler; N];
-        inner.split_at_mut(s.len()).0.copy_from_slice(s.as_bytes());
+        let mut inner = [const { mem::MaybeUninit::<u8>::uninit() }; N];
+        let (copied, filled) = inner.split_at_mut(s.len());
+        copy_bytes(copied, s.as_bytes());
+        write_bytes(filled, filler);
 
-        // SAFETY: ok because `s` is from a string slice (truncated at a char boundary, if
-        // applicable) and `inner` consists of `s` and trailing ASCII fillers
-        unsafe { Self::from_inner_unchecked(inner) }
+        // SAFETY:
+        // - `inner` is fully initialized by copying `s` and filling `filler`s.
+        // - `inner` is valid UTF-8 consisting of a valid `&str` followed by ASCII `filler`s.
+        unsafe { Self::assume_inner_init(inner) }
     }
 
     /// Creates a value that is filled with an ASCII byte.
