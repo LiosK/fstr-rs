@@ -820,11 +820,20 @@ mod tests {
     fn from_str_lossy_edge() {
         assert!(FStr::<0>::from_str_lossy("", b' ').is_empty());
         assert!(FStr::<0>::from_str_lossy("pizza", b' ').is_empty());
-        assert!(FStr::<0>::from_str_lossy("🥹", b' ').is_empty());
+        assert!(FStr::<0>::from_str_lossy("🥹🥹", b' ').is_empty());
 
         assert_eq!(FStr::<1>::from_str_lossy("", b' '), " ");
         assert_eq!(FStr::<1>::from_str_lossy("pizza", b' '), "p");
-        assert_eq!(FStr::<1>::from_str_lossy("🥹", b' '), " ");
+        assert_eq!(FStr::<1>::from_str_lossy("🥹🥹", b' '), " ");
+
+        assert_eq!(FStr::<2>::from_str_lossy("🥹🥹", b' '), "  ");
+        assert_eq!(FStr::<3>::from_str_lossy("🥹🥹", b' '), "   ");
+        assert_eq!(FStr::<4>::from_str_lossy("🥹🥹", b' '), "🥹");
+        assert_eq!(FStr::<5>::from_str_lossy("🥹🥹", b' '), "🥹 ");
+        assert_eq!(FStr::<6>::from_str_lossy("🥹🥹", b' '), "🥹  ");
+        assert_eq!(FStr::<7>::from_str_lossy("🥹🥹", b' '), "🥹   ");
+        assert_eq!(FStr::<8>::from_str_lossy("🥹🥹", b' '), "🥹🥹");
+        assert_eq!(FStr::<9>::from_str_lossy("🥹🥹", b' '), "🥹🥹 ");
     }
 
     /// Tests `FromStr` implementation.
