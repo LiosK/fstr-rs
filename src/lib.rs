@@ -201,8 +201,10 @@ impl<const N: usize> FStr<N> {
     /// Creates a fixed-length array by copying from a slice.
     const fn copy_slice_to_array(s: &[u8]) -> Result<[u8; N], LengthError> {
         if s.len() == N {
-            // SAFETY: ok because `s.len() == N`
-            Ok(unsafe { *s.as_ptr().cast::<[u8; N]>() })
+            let mut bytes = [const { mem::MaybeUninit::<u8>::uninit() }; N];
+            copy_bytes(&mut bytes, s);
+            // SAFETY: the entire array has been initialized by copying from `s`
+            Ok(unsafe { assume_bytes_init(bytes) })
         } else {
             Err(LengthError {
                 actual: s.len(),
