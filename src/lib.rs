@@ -156,21 +156,6 @@ impl<const N: usize> FStr<N> {
         Self { inner: utf8_bytes }
     }
 
-    /// Creates a value from a `MaybeUninit` byte array without checking that the array is an
-    /// initialized array of valid UTF-8 bytes.
-    ///
-    /// # Safety
-    ///
-    /// The caller must guarantee:
-    ///
-    /// - All elements of the byte array are in an initialized state.
-    /// - The byte array must contain a valid UTF-8 byte sequence.
-    const unsafe fn assume_inner_init(utf8_bytes: [mem::MaybeUninit<u8>; N]) -> Self {
-        // SAFETY: ok because [T; N] and [MaybeUninit<T>; N] have the same size and layout
-        let inner: [u8; N] = unsafe { mem::transmute_copy(&utf8_bytes) };
-        unsafe { Self::from_inner_unchecked(inner) }
-    }
-
     /// A `const`-friendly equivalent of `Self::from_str(s).unwrap()`.
     ///
     /// # Examples
@@ -275,7 +260,7 @@ impl<const N: usize> FStr<N> {
         // SAFETY:
         // - `inner` is fully initialized by copying `s` and filling `filler`s.
         // - `inner` is valid UTF-8 consisting of a valid `&str` followed by ASCII `filler`s.
-        unsafe { Self::assume_inner_init(inner) }
+        unsafe { Self::from_inner_unchecked(assume_bytes_init(inner)) }
     }
 
     /// Creates a value that is filled with an ASCII byte.
@@ -431,7 +416,7 @@ impl<const N: usize> FStr<N> {
         if fmt::Write::write_fmt(&mut w, args).is_ok() {
             write_bytes(w.0, filler); // initialize remaining part with `filler`s
             // SAFETY: the entire array has been initialized with valid `&str`s and ASCII `filler`s
-            Ok(unsafe { Self::assume_inner_init(inner) })
+            Ok(unsafe { Self::from_inner_unchecked(assume_bytes_init(inner)) })
         } else {
             // not dropping partially written data because:
             const _STATIC_ASSERT: () = assert!(!mem::needs_drop::<u8>(), "u8 never needs drop");
@@ -718,6 +703,13 @@ impl error::Error for FromSliceError {
             FromSliceErrorKind::Utf8(source) => Some(source),
         }
     }
+}
+
+/// # Safety
+///
+/// The caller must guarantee that all elements of the byte array are in an initialized state.
+const unsafe fn assume_bytes_init<const N: usize>(bytes: [mem::MaybeUninit<u8>; N]) -> [u8; N] {
+    unsafe { mem::transmute_copy(&bytes) }
 }
 
 const fn copy_bytes(dest: &mut [mem::MaybeUninit<u8>], src: &[u8]) {
