@@ -81,7 +81,7 @@
 
 #[cfg(not(feature = "std"))]
 use core as std;
-use std::{borrow, error, fmt, hash, mem, ops, ptr, str};
+use std::{borrow, error, fmt, hash, mem, ops, ptr, slice, str};
 
 /// A stack-allocated fixed-length string type.
 ///
@@ -235,33 +235,45 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!("😂🤪😱👻".len(), 16);
     /// assert_eq!(FStr::<15>::from_str_lossy("😂🤪😱👻", b'.'), "😂🤪😱...");
     /// ```
-    pub const fn from_str_lossy(mut s: &str, filler: u8) -> Self {
+    pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
-
-        if s.len() > N {
-            s = match s.split_at_checked(N) {
-                Some((a, _)) => a,
-                None => match s.split_at_checked(N - 1) {
-                    Some((a, _)) => a,
-                    None => match s.split_at_checked(N - 2) {
-                        Some((a, _)) => a,
-                        None => match s.split_at_checked(N - 3) {
-                            Some((a, _)) => a,
-                            None => unreachable!(), // invalid UTF-8 sequence
-                        },
-                    },
-                },
-            };
+        if N == 0 {
+            return Self::from_ascii_filler(filler);
         }
+
+        let s = if s.len() <= N {
+            s.as_bytes()
+        } else {
+            #[inline(always)]
+            const fn is_char_boundary(byte: u8) -> bool {
+                (byte as i8) >= -0x40 // test continuation byte (`0b10xx_xxxx`)
+            }
+
+            let len = if is_char_boundary(s.as_bytes()[N]) {
+                N
+            } else if is_char_boundary(s.as_bytes()[N - 1]) {
+                N - 1
+            } else if is_char_boundary(s.as_bytes()[N - 2]) {
+                N - 2
+            } else if is_char_boundary(s.as_bytes()[N - 3]) {
+                N - 3
+            } else {
+                unreachable!() // invalid UTF-8 sequence
+            };
+
+            // SAFETY: `len` <= `N` < `s.len()`
+            unsafe { slice::from_raw_parts(s.as_ptr(), len) }
+        };
 
         let mut inner = [const { mem::MaybeUninit::<u8>::uninit() }; N];
         let (copied, filled) = inner.split_at_mut(s.len());
-        copy_bytes(copied, s.as_bytes());
+        copy_bytes(copied, s);
         write_bytes(filled, filler);
 
         // SAFETY:
         // - `inner` is fully initialized by copying `s` and filling `filler`s.
-        // - `inner` is valid UTF-8 consisting of a valid `&str` followed by ASCII `filler`s.
+        // - `inner` is valid UTF-8 consisting of a `&str` trimmed at a char boundary and trailing
+        //   ASCII `filler`s.
         unsafe { Self::from_inner_unchecked(assume_bytes_init(inner)) }
     }
 
