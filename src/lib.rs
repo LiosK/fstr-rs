@@ -722,10 +722,12 @@ impl error::Error for FromSliceError {
 /// # Safety
 ///
 /// The caller must guarantee that all elements of the byte array are in an initialized state.
+#[inline(always)]
 const unsafe fn assume_bytes_init<const N: usize>(bytes: [mem::MaybeUninit<u8>; N]) -> [u8; N] {
     unsafe { mem::transmute_copy(&bytes) }
 }
 
+#[inline(always)]
 const fn copy_bytes(dest: &mut [mem::MaybeUninit<u8>], src: &[u8]) {
     assert!(dest.len() == src.len());
     // SAFETY:
@@ -740,6 +742,7 @@ const fn copy_bytes(dest: &mut [mem::MaybeUninit<u8>], src: &[u8]) {
     }
 }
 
+#[inline(always)]
 const fn write_bytes(dest: &mut [mem::MaybeUninit<u8>], value: u8) {
     // SAFETY:
     // - `dest.as_mut_ptr()` is properly aligned and valid for writes of `dest.len()` bytes.
