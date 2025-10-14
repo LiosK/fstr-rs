@@ -234,17 +234,29 @@ impl<const N: usize> FStr<N> {
     /// ```
     pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
+        if N == 0 {
+            return Self::from_ascii_filler(filler);
+        }
 
-        // stable const equivalent of `s.floor_char_boundary(N)`
         let len = if s.len() <= N {
             s.len()
         } else {
-            // locate last char boundary by skipping tail continuation bytes (`0b10xx_xxxx`)
-            let mut i = N;
-            while (s.as_bytes()[i] as i8) < -64 {
-                i -= 1;
+            #[inline(always)]
+            const fn is_char_boundary(byte: u8) -> bool {
+                (byte as i8) >= -0x40 // test continuation byte (`0b10xx_xxxx`)
             }
-            i
+
+            if is_char_boundary(s.as_bytes()[N]) {
+                N
+            } else if is_char_boundary(s.as_bytes()[N - 1]) {
+                N - 1
+            } else if is_char_boundary(s.as_bytes()[N - 2]) {
+                N - 2
+            } else if is_char_boundary(s.as_bytes()[N - 3]) {
+                N - 3
+            } else {
+                unreachable!() // invalid UTF-8 sequence
+            }
         };
 
         let inner = if s.len() >= N {
