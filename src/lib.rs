@@ -85,6 +85,9 @@ extern crate alloc;
 
 use core::{borrow, fmt, hash, mem, ops, str};
 
+#[cfg(feature = "std")]
+use std::error;
+
 /// A stack-allocated fixed-length string type.
 ///
 /// This type has exactly the same size and binary representation as the inner `[u8; N]` buffer.
@@ -702,6 +705,9 @@ impl fmt::Display for LengthError {
     }
 }
 
+#[cfg(feature = "std")]
+impl error::Error for LengthError {}
+
 /// An error converting to [`FStr<N>`] from a byte slice.
 #[derive(Copy, Eq, PartialEq, Clone, Debug)]
 pub struct FromSliceError {
@@ -720,6 +726,16 @@ impl fmt::Display for FromSliceError {
         match self.kind {
             Length(source) => write!(f, "could not convert slice to FStr: {}", source),
             Utf8(source) => write!(f, "could not convert slice to FStr: {}", source),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl error::Error for FromSliceError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match &self.kind {
+            FromSliceErrorKind::Length(source) => Some(source),
+            FromSliceErrorKind::Utf8(source) => Some(source),
         }
     }
 }
@@ -753,22 +769,6 @@ mod with_string {
     impl<const N: usize> PartialEq<FStr<N>> for String {
         fn eq(&self, other: &FStr<N>) -> bool {
             self.eq(other.as_str())
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-mod with_std {
-    use super::{FromSliceError, FromSliceErrorKind, LengthError};
-
-    impl std::error::Error for LengthError {}
-
-    impl std::error::Error for FromSliceError {
-        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-            match &self.kind {
-                FromSliceErrorKind::Length(source) => Some(source),
-                FromSliceErrorKind::Utf8(source) => Some(source),
-            }
         }
     }
 }
