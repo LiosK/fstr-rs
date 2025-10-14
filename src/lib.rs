@@ -72,16 +72,18 @@
 //!
 //! ## Crate features
 //!
-//! - `std` (optional; enabled by default) enables the integration with [`std`]. Disable default
-//!   features to operate this crate under `no_std` environments.
-//! - `serde` (optional) enables the serialization and deserialization of `FStr`through [`serde`].
+//! - `std` (enabled by default) enables the integration with [`std`]. Disable default features to
+//!   operate this crate under `no_std` environments.
+//! - `alloc` (implied by `std`) enables the integration with [`alloc`].
+//! - `serde` enables the serialization and deserialization of `FStr`through [`serde`].
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-#[cfg(not(feature = "std"))]
-use core as std;
-use std::{borrow, error, fmt, hash, mem, ops, ptr, slice, str};
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+use core::{borrow, error, fmt, hash, mem, ops, ptr, slice, str};
 
 /// A stack-allocated fixed-length string type.
 ///
@@ -159,7 +161,7 @@ impl<const N: usize> FStr<N> {
     ///
     /// ```rust
     /// # use fstr::FStr;
-    /// use std::str::FromStr;
+    /// use core::str::FromStr;
     ///
     /// const K: FStr<3> = FStr::from_str_unwrap("foo");
     /// assert_eq!(K, FStr::from_str("foo").unwrap());
@@ -749,8 +751,10 @@ const fn write_bytes(dest: &mut [mem::MaybeUninit<u8>], value: u8) {
     }
 }
 
-#[cfg(feature = "std")]
-mod with_std {
+#[cfg(feature = "alloc")]
+mod with_string {
+    use alloc::{borrow::ToOwned as _, string::String};
+
     use super::{FStr, LengthError};
 
     impl<const N: usize> From<FStr<N>> for String {
@@ -819,8 +823,10 @@ mod tests {
         assert_ne!(&x as &str, "world");
         assert_ne!("world", &x as &str);
 
-        #[cfg(feature = "std")]
+        #[cfg(feature = "alloc")]
         {
+            use alloc::{borrow::ToOwned as _, string::String, string::ToString as _};
+
             assert_eq!(x, String::from("hello"));
             assert_eq!(String::from("hello"), x);
 
@@ -978,9 +984,11 @@ mod tests {
     }
 
     /// Tests `fmt::Display` implementation.
-    #[cfg(feature = "std")]
+    #[cfg(feature = "alloc")]
     #[test]
     fn display_fmt() {
+        use alloc::format;
+
         let a = FStr::from_inner(*b"you").unwrap();
 
         assert_eq!(format!("{}", a), "you");
