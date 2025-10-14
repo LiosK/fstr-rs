@@ -11,7 +11,8 @@ documentation = "https://docs.rs/fstr"
 
 [features]
 default = ["std"]
-std = []
+std = ["alloc"]
+alloc = []
 serde = ["dep:serde"]
 
 [dependencies]

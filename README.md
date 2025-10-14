@@ -69,9 +69,10 @@ assert_eq!(buffer.slice_to_terminator('\0'), "&#x40; COMMERCIAL AT");
 
 ## Crate features
 
-- `std` (optional; enabled by default) enables the integration with `std`. Disable default
-  features to operate this crate under `no_std` environments.
-- `serde` (optional) enables the serialization and deserialization of `FStr`through `serde`.
+- `std` (enabled by default) enables the integration with `std`. Disable default features to
+  operate this crate under `no_std` environments.
+- `alloc` (implied by `std`) enables the integration with `alloc`.
+- `serde` enables the serialization and deserialization of `FStr`through `serde`.
 
 ## License
 
