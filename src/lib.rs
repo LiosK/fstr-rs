@@ -106,10 +106,7 @@ impl<const N: usize> FStr<N> {
     }
 
     /// Returns a mutable string slice of the content.
-    ///
-    /// This method is kept private because `deref_mut()`, `borrow_mut()`, and `as_mut()` provide
-    /// the same functionality.
-    fn as_mut_str(&mut self) -> &mut str {
+    pub fn as_mut_str(&mut self) -> &mut str {
         debug_assert!(str::from_utf8(&self.inner).is_ok());
         // SAFETY: constructors must guarantee that `inner` is a valid UTF-8 sequence.
         unsafe { str::from_utf8_unchecked_mut(&mut self.inner) }
