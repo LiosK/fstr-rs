@@ -200,19 +200,6 @@ impl<const N: usize> FStr<N> {
         }
     }
 
-    /// Creates a fixed-length array by copying from a slice.
-    const fn copy_slice_to_array(s: &[u8]) -> Result<[u8; N], LengthError> {
-        if s.len() == N {
-            // SAFETY: ok because `s.len() == N`
-            Ok(unsafe { *s.as_ptr().cast::<[u8; N]>() })
-        } else {
-            Err(LengthError {
-                actual: s.len(),
-                expected: N,
-            })
-        }
-    }
-
     /// Creates a value from an arbitrary string but truncates or stretches the content.
     ///
     /// This function appends `filler` bytes to the end if the argument is shorter than the type's
@@ -454,6 +441,22 @@ impl<const N: usize> FStr<N> {
             // not dropping partially written data because:
             const _STATIC_ASSERT: () = assert!(!mem::needs_drop::<u8>(), "u8 never needs drop");
             Err(fmt::Error)
+        }
+    }
+}
+
+/// Helper functions
+impl<const N: usize> FStr<N> {
+    /// Creates a fixed-length array by copying from a slice.
+    const fn copy_slice_to_array(s: &[u8]) -> Result<[u8; N], LengthError> {
+        if s.len() == N {
+            // SAFETY: ok because `s.len() == N`
+            Ok(unsafe { *s.as_ptr().cast::<[u8; N]>() })
+        } else {
+            Err(LengthError {
+                actual: s.len(),
+                expected: N,
+            })
         }
     }
 }
