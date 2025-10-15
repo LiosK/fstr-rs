@@ -197,21 +197,6 @@ impl<const N: usize> FStr<N> {
         }
     }
 
-    /// Creates a fixed-length array by copying from a slice.
-    const fn copy_slice_to_array(s: &[u8]) -> Result<[u8; N], LengthError> {
-        if s.len() == N {
-            let mut bytes = [const { mem::MaybeUninit::<u8>::uninit() }; N];
-            init_bytes_by_copying(&mut bytes, s);
-            // SAFETY: the entire array has been initialized by copying from `s`
-            Ok(unsafe { assume_bytes_init(bytes) })
-        } else {
-            Err(LengthError {
-                actual: s.len(),
-                expected: N,
-            })
-        }
-    }
-
     /// Creates a value from an arbitrary string but truncates or stretches the content.
     ///
     /// This function appends `filler` bytes to the end if the argument is shorter than the type's
@@ -270,7 +255,7 @@ impl<const N: usize> FStr<N> {
         // - `inner` is fully initialized by copying `s[..len]` and filling `filler`s.
         // - `inner` is valid UTF-8 consisting of a `&str` trimmed at a char boundary and trailing
         //   ASCII `filler`s.
-        unsafe { Self::from_inner_unchecked(assume_bytes_init(inner)) }
+        unsafe { Self::from_inner_unchecked(Self::assume_bytes_init(inner)) }
     }
 
     /// Creates a value that is filled with an ASCII byte.
@@ -426,12 +411,39 @@ impl<const N: usize> FStr<N> {
         if fmt::Write::write_fmt(&mut w, args).is_ok() {
             init_bytes_by_filling(w.0, filler); // initialize remaining part with `filler`s
             // SAFETY: the entire array has been initialized with valid `&str`s and ASCII `filler`s
-            Ok(unsafe { Self::from_inner_unchecked(assume_bytes_init(inner)) })
+            Ok(unsafe { Self::from_inner_unchecked(Self::assume_bytes_init(inner)) })
         } else {
             // not dropping partially written data because:
             const _STATIC_ASSERT: () = assert!(!mem::needs_drop::<u8>(), "u8 never needs drop");
             Err(fmt::Error)
         }
+    }
+}
+
+/// Helper functions
+impl<const N: usize> FStr<N> {
+    /// Creates a fixed-length array by copying from a slice.
+    const fn copy_slice_to_array(s: &[u8]) -> Result<[u8; N], LengthError> {
+        if s.len() == N {
+            let mut bytes = [const { mem::MaybeUninit::<u8>::uninit() }; N];
+            init_bytes_by_copying(&mut bytes, s);
+            // SAFETY: the entire array has been initialized by copying from `s`
+            Ok(unsafe { Self::assume_bytes_init(bytes) })
+        } else {
+            Err(LengthError {
+                actual: s.len(),
+                expected: N,
+            })
+        }
+    }
+
+    /// Extracts the bytes from an array of `MaybeUninit<u8>` containers.
+    ///
+    /// # Safety
+    ///
+    /// The caller must guarantee that all elements of the byte array are in an initialized state.
+    const unsafe fn assume_bytes_init(bytes: [mem::MaybeUninit<u8>; N]) -> [u8; N] {
+        unsafe { mem::transmute_copy(&bytes) }
     }
 }
 
@@ -713,14 +725,6 @@ impl error::Error for FromSliceError {
             FromSliceErrorKind::Utf8(source) => Some(source),
         }
     }
-}
-
-/// # Safety
-///
-/// The caller must guarantee that all elements of the byte array are in an initialized state.
-#[inline(always)]
-const unsafe fn assume_bytes_init<const N: usize>(bytes: [mem::MaybeUninit<u8>; N]) -> [u8; N] {
-    unsafe { mem::transmute_copy(&bytes) }
 }
 
 /// Copies `dest.len()` bytes from `src` to `dest`.
