@@ -83,7 +83,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-use core::{borrow, error, fmt, hash, mem, ops, ptr, slice, str};
+use core::{borrow, error, fmt, hash, mem, ops, ptr, str};
 
 /// A stack-allocated fixed-length string type.
 ///
@@ -201,7 +201,7 @@ impl<const N: usize> FStr<N> {
     const fn copy_slice_to_array(s: &[u8]) -> Result<[u8; N], LengthError> {
         if s.len() == N {
             let mut bytes = [const { mem::MaybeUninit::<u8>::uninit() }; N];
-            copy_bytes(&mut bytes, s);
+            init_bytes_by_copying(&mut bytes, s);
             // SAFETY: the entire array has been initialized by copying from `s`
             Ok(unsafe { assume_bytes_init(bytes) })
         } else {
@@ -240,15 +240,15 @@ impl<const N: usize> FStr<N> {
             return Self::from_ascii_filler(filler);
         }
 
-        let s = if s.len() <= N {
-            s.as_bytes()
+        let len = if s.len() <= N {
+            s.len()
         } else {
             #[inline(always)]
             const fn is_char_boundary(byte: u8) -> bool {
                 (byte as i8) >= -0x40 // test continuation byte (`0b10xx_xxxx`)
             }
 
-            let len = if is_char_boundary(s.as_bytes()[N]) {
+            if is_char_boundary(s.as_bytes()[N]) {
                 N
             } else if is_char_boundary(s.as_bytes()[N - 1]) {
                 N - 1
@@ -258,19 +258,16 @@ impl<const N: usize> FStr<N> {
                 N - 3
             } else {
                 unreachable!() // invalid UTF-8 sequence
-            };
-
-            // SAFETY: `len` <= `N` < `s.len()`
-            unsafe { slice::from_raw_parts(s.as_ptr(), len) }
+            }
         };
 
         let mut inner = [const { mem::MaybeUninit::<u8>::uninit() }; N];
-        let (copied, filled) = inner.split_at_mut(s.len());
-        copy_bytes(copied, s);
-        write_bytes(filled, filler);
+        let (written, filled) = inner.split_at_mut(len);
+        init_bytes_by_copying(written, s.as_bytes());
+        init_bytes_by_filling(filled, filler);
 
         // SAFETY:
-        // - `inner` is fully initialized by copying `s` and filling `filler`s.
+        // - `inner` is fully initialized by copying `s[..len]` and filling `filler`s.
         // - `inner` is valid UTF-8 consisting of a `&str` trimmed at a char boundary and trailing
         //   ASCII `filler`s.
         unsafe { Self::from_inner_unchecked(assume_bytes_init(inner)) }
@@ -416,7 +413,7 @@ impl<const N: usize> FStr<N> {
                 if s.len() <= self.0.len() {
                     let written;
                     (written, self.0) = mem::take(&mut self.0).split_at_mut(s.len());
-                    copy_bytes(written, s.as_bytes());
+                    init_bytes_by_copying(written, s.as_bytes());
                     Ok(())
                 } else {
                     Err(fmt::Error)
@@ -427,7 +424,7 @@ impl<const N: usize> FStr<N> {
         let mut inner = [const { mem::MaybeUninit::uninit() }; N];
         let mut w = Writer(inner.as_mut_slice());
         if fmt::Write::write_fmt(&mut w, args).is_ok() {
-            write_bytes(w.0, filler); // initialize remaining part with `filler`s
+            init_bytes_by_filling(w.0, filler); // initialize remaining part with `filler`s
             // SAFETY: the entire array has been initialized with valid `&str`s and ASCII `filler`s
             Ok(unsafe { Self::from_inner_unchecked(assume_bytes_init(inner)) })
         } else {
@@ -726,28 +723,29 @@ const unsafe fn assume_bytes_init<const N: usize>(bytes: [mem::MaybeUninit<u8>; 
     unsafe { mem::transmute_copy(&bytes) }
 }
 
+/// Copies `dest.len()` bytes from `src` to `dest`.
 #[inline(always)]
-const fn copy_bytes(dest: &mut [mem::MaybeUninit<u8>], src: &[u8]) {
-    assert!(dest.len() == src.len());
+const fn init_bytes_by_copying(dest: &mut [mem::MaybeUninit<u8>], src: &[u8]) {
+    assert!(src.len() >= dest.len());
     // SAFETY:
     // - `src.as_ptr()` and `dest.as_mut_ptr()` are both properly aligned and valid for reads and
-    //   writes, respectively, of `src.len()` (which equals to `dest.len()`) bytes.
+    //   writes, respectively, of `dest.len()` (which is no greater than `src.len()`) bytes.
     // - Casting `*mut MaybeUninit<u8>` to `*mut u8` is safe because `MaybeUninit<T>` and `T` have
     //   the same size and layout.
     // - Non-overlapping guarantee is satisfied because Rust does not allow to create another
     //   reference to `dest: &mut [_]`.
     unsafe {
-        ptr::copy_nonoverlapping(src.as_ptr(), dest.as_mut_ptr().cast::<u8>(), src.len());
+        ptr::copy_nonoverlapping(src.as_ptr(), dest.as_mut_ptr().cast::<u8>(), dest.len());
     }
 }
 
 #[inline(always)]
-const fn write_bytes(dest: &mut [mem::MaybeUninit<u8>], value: u8) {
+const fn init_bytes_by_filling(dest: &mut [mem::MaybeUninit<u8>], filler: u8) {
     // SAFETY:
     // - `dest.as_mut_ptr()` is properly aligned and valid for writes of `dest.len()` bytes.
     // - `&[MaybeUninit<u8>]` is safe to write raw bytes byte-by-byte.
     unsafe {
-        ptr::write_bytes(dest.as_mut_ptr(), value, dest.len());
+        ptr::write_bytes(dest.as_mut_ptr(), filler, dest.len());
     }
 }
 
