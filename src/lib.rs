@@ -220,10 +220,10 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(FStr::<15>::from_str_lossy("😂🤪😱👻", b'.'), "😂🤪😱...");
     /// ```
     pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
-        assert!(filler.is_ascii(), "filler byte must represent ASCII char");
         if N == 0 {
-            return Self::from_ascii_filler(filler);
+            return Self::from_ascii_filler(filler); // filler check done there
         }
+        assert!(filler.is_ascii(), "filler byte must represent ASCII char");
 
         let len = if s.len() <= N {
             s.len()
@@ -248,11 +248,11 @@ impl<const N: usize> FStr<N> {
 
         let mut inner = [const { mem::MaybeUninit::<u8>::uninit() }; N];
         let (written, filled) = inner.split_at_mut(len);
-        init_bytes_by_copying(written, s.as_bytes());
+        init_bytes_by_copying(written, s.as_bytes()); // copy `&s[..len]` to `written`
         init_bytes_by_filling(filled, filler);
 
         // SAFETY:
-        // - `inner` is fully initialized by copying `s[..len]` and filling `filler`s.
+        // - `inner` is fully initialized by copying `&s[..len]` and filling `filler`s.
         // - `inner` is valid UTF-8 consisting of a `&str` trimmed at a char boundary and trailing
         //   ASCII `filler`s.
         unsafe { Self::from_inner_unchecked(Self::assume_bytes_init(inner)) }
