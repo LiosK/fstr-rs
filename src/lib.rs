@@ -227,23 +227,16 @@ impl<const N: usize> FStr<N> {
 
         let len = if s.len() <= N {
             s.len()
+        } else if is_utf8_char_boundary(s.as_bytes()[N]) {
+            N
+        } else if is_utf8_char_boundary(s.as_bytes()[N - 1]) {
+            N - 1
+        } else if is_utf8_char_boundary(s.as_bytes()[N - 2]) {
+            N - 2
+        } else if is_utf8_char_boundary(s.as_bytes()[N - 3]) {
+            N - 3
         } else {
-            #[inline(always)]
-            const fn is_char_boundary(byte: u8) -> bool {
-                (byte as i8) >= -0x40 // test continuation byte (`0b10xx_xxxx`)
-            }
-
-            if is_char_boundary(s.as_bytes()[N]) {
-                N
-            } else if is_char_boundary(s.as_bytes()[N - 1]) {
-                N - 1
-            } else if is_char_boundary(s.as_bytes()[N - 2]) {
-                N - 2
-            } else if is_char_boundary(s.as_bytes()[N - 3]) {
-                N - 3
-            } else {
-                unreachable!() // invalid UTF-8 sequence
-            }
+            unreachable!() // invalid UTF-8 sequence
         };
 
         let mut inner = [const { mem::MaybeUninit::<u8>::uninit() }; N];
@@ -725,6 +718,11 @@ impl error::Error for FromSliceError {
             FromSliceErrorKind::Utf8(source) => Some(source),
         }
     }
+}
+
+#[inline(always)]
+const fn is_utf8_char_boundary(byte: u8) -> bool {
+    (byte as i8) >= -0x40 // test continuation byte (`0b10xx_xxxx`)
 }
 
 /// Copies `dest.len()` bytes from `src` to `dest`.
