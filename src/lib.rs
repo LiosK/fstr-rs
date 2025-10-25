@@ -933,6 +933,9 @@ mod tests {
 
         assert!(write!(FStr::<0>::default().writer_at(0), "").is_ok());
         assert!(write!(FStr::<0>::default().writer_at(0), " ").is_err());
+
+        assert!(write!(FStr::<5>::default().writer_at(5), "").is_ok());
+        assert!(write!(FStr::<5>::default().writer_at(5), " ").is_err());
     }
 
     #[test]
