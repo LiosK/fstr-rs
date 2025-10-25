@@ -223,30 +223,23 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(FStr::<15>::from_str_lossy("😂🤪😱👻", b'.'), "😂🤪😱...");
     /// ```
     pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
-        assert!(filler.is_ascii(), "filler byte must represent ASCII char");
         if N == 0 {
-            return Self::from_ascii_filler(filler);
+            return Self::from_ascii_filler(filler); // filler check done there
         }
+        assert!(filler.is_ascii(), "filler byte must represent ASCII char");
 
         let len = if s.len() <= N {
             s.len()
+        } else if is_utf8_char_boundary(s.as_bytes()[N]) {
+            N
+        } else if is_utf8_char_boundary(s.as_bytes()[N - 1]) {
+            N - 1
+        } else if is_utf8_char_boundary(s.as_bytes()[N - 2]) {
+            N - 2
+        } else if is_utf8_char_boundary(s.as_bytes()[N - 3]) {
+            N - 3
         } else {
-            #[inline(always)]
-            const fn is_char_boundary(byte: u8) -> bool {
-                (byte as i8) >= -0x40 // test continuation byte (`0b10xx_xxxx`)
-            }
-
-            if is_char_boundary(s.as_bytes()[N]) {
-                N
-            } else if is_char_boundary(s.as_bytes()[N - 1]) {
-                N - 1
-            } else if is_char_boundary(s.as_bytes()[N - 2]) {
-                N - 2
-            } else if is_char_boundary(s.as_bytes()[N - 3]) {
-                N - 3
-            } else {
-                unreachable!() // invalid UTF-8 sequence
-            }
+            unreachable!() // invalid UTF-8 sequence
         };
 
         let inner = if s.len() >= N {
@@ -741,6 +734,11 @@ impl error::Error for FromSliceError {
             FromSliceErrorKind::Utf8(source) => Some(source),
         }
     }
+}
+
+#[inline(always)]
+const fn is_utf8_char_boundary(byte: u8) -> bool {
+    (byte as i8) >= -0x40 // test continuation byte (`0b10xx_xxxx`)
 }
 
 #[cfg(feature = "alloc")]
