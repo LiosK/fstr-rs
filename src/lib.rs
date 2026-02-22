@@ -74,7 +74,7 @@
 //!
 //! - `std` (enabled by default) enables the integration with [`std`]. Disable default features to
 //!   operate this crate under `no_std` environments.
-//! - `alloc` (implied by `std`) enables the integration with [`alloc`].
+//! - `alloc` (implied by `std`) enables the integration with [`alloc`] (most notably, [`String`]).
 //! - `serde` enables the serialization and deserialization of `FStr`through [`serde`].
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -83,9 +83,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-#[cfg(not(feature = "std"))]
-use core as std;
-use std::{borrow, error, fmt, hash, mem, ops, ptr, str};
+use core::{borrow, error, fmt, hash, mem, ops, ptr, str};
 
 /// A stack-allocated fixed-length string type.
 ///

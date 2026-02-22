@@ -71,7 +71,7 @@ assert_eq!(buffer.slice_to_terminator('\0'), "&#x40; COMMERCIAL AT");
 
 - `std` (enabled by default) enables the integration with `std`. Disable default features to
   operate this crate under `no_std` environments.
-- `alloc` (implied by `std`) enables the integration with `alloc`.
+- `alloc` (implied by `std`) enables the integration with `alloc` (most notably, `String`).
 - `serde` enables the serialization and deserialization of `FStr`through `serde`.
 
 ## License
