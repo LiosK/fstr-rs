@@ -8,6 +8,7 @@ rust-version = "1.85"
 description = "A stack-allocated fixed-length string type"
 repository = "https://github.com/LiosK/fstr-rs"
 documentation = "https://docs.rs/fstr"
+exclude = ["/.github/"]
 
 [features]
 default = ["std"]
