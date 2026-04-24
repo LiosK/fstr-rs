@@ -677,6 +677,18 @@ pub struct LengthError {
     expected: usize,
 }
 
+impl LengthError {
+    /// Returns the actual length of the slice passed.
+    pub fn actual(&self) -> usize {
+        self.actual
+    }
+
+    /// Returns the expected length (i.e., `N`).
+    pub fn expected(&self) -> usize {
+        self.expected
+    }
+}
+
 impl fmt::Display for LengthError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
