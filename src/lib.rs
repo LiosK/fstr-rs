@@ -166,6 +166,7 @@ impl<const N: usize> FStr<N> {
     /// const K: FStr<3> = FStr::from_str_unwrap("foo");
     /// assert_eq!(K, FStr::from_str("foo").unwrap());
     /// ```
+    #[track_caller]
     pub const fn from_str_unwrap(s: &str) -> Self {
         match Self::try_from_str(s) {
             Ok(t) => t,
@@ -219,6 +220,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!("😂🤪😱👻".len(), 16);
     /// assert_eq!(FStr::<15>::from_str_lossy("😂🤪😱👻", b'.'), "😂🤪😱...");
     /// ```
+    #[track_caller]
     pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
         if N == 0 {
             return Self::from_ascii_filler(filler); // filler check done there
@@ -267,6 +269,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(FStr::<5>::from_ascii_filler(b'-'), "-----");
     /// # assert_eq!(FStr::<0>::from_ascii_filler(b'\0'), "");
     /// ```
+    #[track_caller]
     pub const fn from_ascii_filler(filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
         // SAFETY: ok because the array consists of ASCII bytes only
@@ -354,6 +357,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(d, "----++......");
     /// # Ok::<_, core::fmt::Error>(())
     /// ```
+    #[track_caller]
     pub fn writer_at(&mut self, index: usize) -> Cursor<&mut Self> {
         Cursor::with_position(index, self).expect("index must point to char boundary")
     }
@@ -383,6 +387,7 @@ impl<const N: usize> FStr<N> {
     /// assert_eq!(x, "  0042  \0\0");
     /// # Ok::<_, core::fmt::Error>(())
     /// ```
+    #[track_caller]
     pub fn from_fmt(args: fmt::Arguments<'_>, filler: u8) -> Result<Self, fmt::Error> {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
 
