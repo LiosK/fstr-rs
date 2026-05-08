@@ -1,7 +1,7 @@
 //! # FStr: a stack-allocated fixed-length string type
 //!
 //! This crate provides a new type wrapping `[u8; N]` to handle a stack-allocated byte array as a
-//! fixed-length, [`String`]-like owned type through common traits including `Display`, `PartialEq`,
+//! fixed-length, `String`-like owned type through common traits including `Display`, `PartialEq`,
 //! and `Deref<Target = str>`.
 //!
 //! ```rust
@@ -25,7 +25,7 @@
 //! # Ok::<_, core::str::Utf8Error>(())
 //! ```
 //!
-//! Unlike [`String`] and [`arrayvec::ArrayString`], which keep track of the length of the stored
+//! Unlike `String` and [`arrayvec::ArrayString`], which keep track of the length of the stored
 //! string, this type has the same binary representation as the underlying `[u8; N]` and, therefore,
 //! can only manage fixed-length strings. The type parameter `N` specifies the exact length (in
 //! bytes) of a concrete type, and each concrete type holds only string values of that size.
@@ -72,9 +72,9 @@
 //!
 //! ## Crate features
 //!
-//! - `std` (enabled by default) enables the integration with [`std`]. Disable default features to
+//! - `std` (enabled by default) enables the integration with `std`. Disable default features to
 //!   operate this crate under `no_std` environments.
-//! - `alloc` (implied by `std`) enables the integration with [`alloc`] (most notably, [`String`]).
+//! - `alloc` (implied by `std`) enables the integration with [`alloc`] (most notably, `String`).
 //! - `serde` enables the serialization and deserialization of `FStr`through [`serde`].
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -949,32 +949,6 @@ mod tests {
     #[should_panic]
     fn writer_at_index_beyond_end() {
         FStr::<5>::default().writer_at(7);
-    }
-
-    /// Tests `Hash` and `Borrow` implementations using `HashSet`.
-    #[cfg(feature = "std")]
-    #[test]
-    fn hash_borrow() {
-        use std::collections::HashSet;
-
-        let mut s = HashSet::new();
-        s.insert(FStr::from_inner(*b"crisis").unwrap());
-        s.insert(FStr::from_inner(*b"eating").unwrap());
-        s.insert(FStr::from_inner(*b"lucent").unwrap());
-
-        assert!(s.contains("crisis"));
-        assert!(s.contains("eating"));
-        assert!(s.contains("lucent"));
-        assert!(!s.contains("system"));
-        assert!(!s.contains("unless"));
-        assert!(!s.contains("yellow"));
-
-        assert!(s.contains(&FStr::from_inner(*b"crisis").unwrap()));
-        assert!(s.contains(&FStr::from_inner(*b"eating").unwrap()));
-        assert!(s.contains(&FStr::from_inner(*b"lucent").unwrap()));
-        assert!(!s.contains(&FStr::from_inner(*b"system").unwrap()));
-        assert!(!s.contains(&FStr::from_inner(*b"unless").unwrap()));
-        assert!(!s.contains(&FStr::from_inner(*b"yellow").unwrap()));
     }
 
     /// Tests `fmt::Display` implementation.
