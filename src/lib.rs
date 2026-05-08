@@ -654,10 +654,10 @@ impl<T> Cursor<T> {
 impl<T: AsRef<str>> Cursor<T> {
     /// Creates a new cursor at the specified index.
     fn with_position(pos: usize, inner: T) -> Option<Self> {
-        match inner.as_ref().is_char_boundary(pos) {
-            true => Some(Self { inner, pos }),
-            false => None,
-        }
+        inner
+            .as_ref()
+            .is_char_boundary(pos)
+            .then(|| Self { inner, pos })
     }
 }
 
