@@ -1,6 +1,6 @@
 [package]
 name = "fstr"
-version = "0.2.18"
+version = "0.2.19"
 authors = ["LiosK <contact@mail.liosk.net>"]
 license = "Apache-2.0"
 edition = "2024"
