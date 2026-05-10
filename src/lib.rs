@@ -57,8 +57,7 @@
 //! NUL-terminated buffer and some helper methods.
 //!
 //! ```rust
-//! # use fstr::FStr;
-//! let mut buffer = FStr::<24>::from_fmt(format_args!("&#x{:x};", b'@'), b'\0')?;
+//! let mut buffer = fstr::fstr!(24; "&#x{:x};", b'@')?;
 //! assert_eq!(buffer, "&#x40;\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
 //!
 //! let c_str = buffer.slice_to_terminator('\0');
@@ -375,7 +374,8 @@ impl<const N: usize> FStr<N> {
     ///
     /// # Errors
     ///
-    /// Returns `Err` if the formatted string is longer than the type's length.
+    /// Returns `Err` if the formatted string is longer than the type's length, or if formatting
+    /// fails for other reasons.
     ///
     /// # Panics
     ///
@@ -479,12 +479,10 @@ impl<const N: usize> Default for FStr<N> {
 
 impl<const N: usize> fmt::Debug for FStr<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct(
-            match FStr::<32>::from_fmt(format_args!("FStr<{}>", N), b'\0') {
-                Ok(ref buffer) => buffer.slice_to_terminator('\0'),
-                Err(_) => "FStr", // unreachable
-            },
-        )
+        f.debug_struct(match fstr!(32; "FStr<{}>", N) {
+            Ok(ref buffer) => buffer.slice_to_terminator('\0'),
+            Err(_) => "FStr", // unreachable
+        })
         .field("inner", &self.as_str())
         .finish()
     }
@@ -598,6 +596,37 @@ impl<const N: usize> TryFrom<&[u8]> for FStr<N> {
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         Self::try_from_slice(value)
     }
+}
+
+/// Creates a value of [`FStr`] using the formatting syntax, analogous to [`format!`].
+///
+/// The formatted string is padded with null characters (`\0`) if it is shorter than the type's
+/// length, or the macro returns `Err` if longer.
+///
+/// [`format!`]: alloc::format
+///
+/// # Examples
+///
+/// ```rust
+/// // The first form takes the length as the first argument.
+/// let a = fstr::fstr!(10; "{:06}", 123).unwrap();
+/// assert_eq!(a, "000123\0\0\0\0");
+///
+/// // The second form infers the length from the calling context.
+/// let b: FStr<10> = fstr::fstr!("{:06}", 123).unwrap();
+/// assert_eq!(b, "000123\0\0\0\0");
+/// # use fstr::FStr;
+/// # assert_eq!(a, FStr::<10>::from_fmt(format_args!("{:06}", 123), b'\0').unwrap());
+/// # assert_eq!(b, FStr::from_fmt(format_args!("{:06}", 123), b'\0').unwrap());
+/// ```
+#[macro_export]
+macro_rules! fstr {
+    ($len:expr; $($arg:tt)*) => {
+        $crate::FStr::<$len>::from_fmt(::core::format_args!($($arg)*), b'\0')
+    };
+    ($($arg:tt)*) => {
+        $crate::FStr::from_fmt(::core::format_args!($($arg)*), b'\0')
+    };
 }
 
 /// A cursor-like writer structure returned by [`FStr::writer_at`].
