@@ -278,13 +278,6 @@ impl<const N: usize> FStr<N> {
         unsafe { Self::from_inner_unchecked([filler; N]) }
     }
 
-    /// A deprecated synonym for [`FStr::from_ascii_filler`] retained for backward compatibility.
-    #[doc(hidden)]
-    #[deprecated(since = "0.2.12", note = "renamed to `from_ascii_filler`")]
-    pub const fn repeat(filler: u8) -> Self {
-        Self::from_ascii_filler(filler)
-    }
-
     /// Returns a substring from the beginning to the specified terminator (if found) or to the end
     /// (otherwise).
     ///
@@ -309,13 +302,6 @@ impl<const N: usize> FStr<N> {
             Some(i) => &self[..i],
             _ => self,
         }
-    }
-
-    /// A deprecated synonym for `FStr::writer_at(0)` retained for backward compatibility.
-    #[doc(hidden)]
-    #[deprecated(since = "0.2.13", note = "use `writer_at(0)` instead")]
-    pub fn writer(&mut self) -> Cursor<&mut Self> {
-        self.writer_at(0)
     }
 
     /// Returns a writer that writes `&str` into `self` through the [`fmt::Write`] trait.
@@ -429,6 +415,23 @@ impl<const N: usize> FStr<N> {
             const _STATIC_ASSERT: () = assert!(!mem::needs_drop::<u8>(), "u8 never needs drop");
             Err(fmt::Error)
         }
+    }
+}
+
+/// Deprecated synonyms retained for backward compatibility.
+#[doc(hidden)]
+impl<const N: usize> FStr<N> {
+    /// A deprecated synonym for [`FStr::from_ascii_filler`].
+    #[deprecated(since = "0.2.12", note = "renamed to `from_ascii_filler`")]
+    #[track_caller]
+    pub const fn repeat(filler: u8) -> Self {
+        Self::from_ascii_filler(filler)
+    }
+
+    /// A deprecated synonym for [`FStr::writer_at(0)`](FStr::writer_at).
+    #[deprecated(since = "0.2.13", note = "use `writer_at(0)` instead")]
+    pub fn writer(&mut self) -> Cursor<&mut Self> {
+        self.writer_at(0)
     }
 }
 
