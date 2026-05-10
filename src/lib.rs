@@ -755,11 +755,8 @@ enum FromSliceErrorKind {
 
 impl fmt::Display for FromSliceError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use FromSliceErrorKind::{Length, Utf8};
-        match &self.kind {
-            Length(source) => write!(f, "could not convert slice to FStr: {}", source),
-            Utf8(source) => write!(f, "could not convert slice to FStr: {}", source),
-        }
+        let source = error::Error::source(self).unwrap();
+        write!(f, "could not convert slice to FStr: {}", source)
     }
 }
 
