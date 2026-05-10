@@ -122,7 +122,7 @@ impl<const N: usize> FStr<N> {
     }
 
     /// Extracts the underlying byte array.
-    pub const fn into_inner(self) -> [u8; N] {
+    pub const fn into_bytes(self) -> [u8; N] {
         self.inner
     }
 
@@ -136,11 +136,11 @@ impl<const N: usize> FStr<N> {
     ///
     /// ```rust
     /// # use fstr::FStr;
-    /// let x = FStr::from_inner(*b"foo")?;
+    /// let x = FStr::from_bytes(*b"foo")?;
     /// assert_eq!(x, "foo");
     /// # Ok::<_, core::str::Utf8Error>(())
     /// ```
-    pub const fn from_inner(utf8_bytes: [u8; N]) -> Result<Self, str::Utf8Error> {
+    pub const fn from_bytes(utf8_bytes: [u8; N]) -> Result<Self, str::Utf8Error> {
         match str::from_utf8(&utf8_bytes) {
             Ok(_) => Ok(Self { inner: utf8_bytes }),
             Err(e) => Err(e),
@@ -152,7 +152,7 @@ impl<const N: usize> FStr<N> {
     /// # Safety
     ///
     /// The byte array passed in must contain a valid UTF-8 byte sequence.
-    pub const unsafe fn from_inner_unchecked(utf8_bytes: [u8; N]) -> Self {
+    pub const unsafe fn from_bytes_unchecked(utf8_bytes: [u8; N]) -> Self {
         debug_assert!(str::from_utf8(&utf8_bytes).is_ok());
         Self { inner: utf8_bytes }
     }
@@ -180,7 +180,7 @@ impl<const N: usize> FStr<N> {
     const fn try_from_str(s: &str) -> Result<Self, LengthError> {
         match Self::copy_slice_to_array(s.as_bytes()) {
             // SAFETY: ok because `inner` contains the whole content of a string slice
-            Ok(inner) => Ok(unsafe { Self::from_inner_unchecked(inner) }),
+            Ok(inner) => Ok(unsafe { Self::from_bytes_unchecked(inner) }),
             Err(e) => Err(e),
         }
     }
@@ -188,7 +188,7 @@ impl<const N: usize> FStr<N> {
     /// Creates a value from a byte slice in the `const` context.
     const fn try_from_slice(s: &[u8]) -> Result<Self, FromSliceError> {
         match Self::copy_slice_to_array(s) {
-            Ok(inner) => match Self::from_inner(inner) {
+            Ok(inner) => match Self::from_bytes(inner) {
                 Ok(t) => Ok(t),
                 Err(e) => Err(FromSliceError {
                     kind: FromSliceErrorKind::Utf8(e),
@@ -254,7 +254,7 @@ impl<const N: usize> FStr<N> {
 
         // SAFETY: ok because `s` is from a string slice (truncated at a char boundary, if
         // applicable) and `inner` consists of `s` and trailing ASCII fillers
-        unsafe { Self::from_inner_unchecked(inner) }
+        unsafe { Self::from_bytes_unchecked(inner) }
     }
 
     /// Creates a value that is filled with an ASCII byte.
@@ -275,7 +275,7 @@ impl<const N: usize> FStr<N> {
     pub const fn from_ascii_filler(filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
         // SAFETY: ok because the array consists of ASCII bytes only
-        unsafe { Self::from_inner_unchecked([filler; N]) }
+        unsafe { Self::from_bytes_unchecked([filler; N]) }
     }
 
     /// Returns a substring from the beginning to the specified terminator (if found) or to the end
@@ -289,12 +289,12 @@ impl<const N: usize> FStr<N> {
     ///
     /// ```rust
     /// # use fstr::FStr;
-    /// let x = FStr::from_inner(*b"quick brown fox\n")?;
+    /// let x = FStr::from_bytes(*b"quick brown fox\n")?;
     /// assert_eq!(x.slice_to_terminator(' '), "quick");
     /// assert_eq!(x.slice_to_terminator('w'), "quick bro");
     /// assert_eq!(x.slice_to_terminator('\n'), "quick brown fox");
     /// assert_eq!(x.slice_to_terminator('🦊'), "quick brown fox\n");
-    /// # assert_eq!(FStr::from_inner([])?.slice_to_terminator(' '), "");
+    /// # assert_eq!(FStr::from_bytes([])?.slice_to_terminator(' '), "");
     /// # Ok::<_, core::str::Utf8Error>(())
     /// ```
     pub fn slice_to_terminator(&self, terminator: char) -> &str {
@@ -406,7 +406,7 @@ impl<const N: usize> FStr<N> {
             // SAFETY: ok because [T; N] and [MaybeUninit<T>; N] have the same size and layout and
             // the entire array has been initialized with valid `&str`s and ASCII `filler`s
             Ok(unsafe {
-                Self::from_inner_unchecked(
+                Self::from_bytes_unchecked(
                     mem::transmute_copy::<[mem::MaybeUninit<u8>; N], [u8; N]>(&inner),
                 )
             })
@@ -421,11 +421,29 @@ impl<const N: usize> FStr<N> {
 /// Deprecated synonyms retained for backward compatibility.
 #[doc(hidden)]
 impl<const N: usize> FStr<N> {
+    /// A deprecated synonym for [`FStr::from_bytes`].
+    #[deprecated(since = "0.2.20", note = "renamed to `from_bytes`")]
+    pub const fn from_inner(utf8_bytes: [u8; N]) -> Result<Self, str::Utf8Error> {
+        Self::from_bytes(utf8_bytes)
+    }
+
+    /// A deprecated synonym for [`FStr::from_bytes_unchecked`].
+    #[deprecated(since = "0.2.20", note = "renamed to `from_bytes_unchecked`")]
+    pub const unsafe fn from_inner_unchecked(utf8_bytes: [u8; N]) -> Self {
+        unsafe { Self::from_bytes_unchecked(utf8_bytes) }
+    }
+
     /// A deprecated synonym for [`FStr::from_ascii_filler`].
     #[deprecated(since = "0.2.12", note = "renamed to `from_ascii_filler`")]
     #[track_caller]
     pub const fn repeat(filler: u8) -> Self {
         Self::from_ascii_filler(filler)
+    }
+
+    /// A deprecated synonym for [`FStr::into_bytes`].
+    #[deprecated(since = "0.2.20", note = "renamed to `into_bytes`")]
+    pub const fn into_inner(self) -> [u8; N] {
+        self.into_bytes()
     }
 
     /// A deprecated synonym for [`FStr::writer_at(0)`](FStr::writer_at).
@@ -565,7 +583,7 @@ impl<const N: usize> AsRef<[u8]> for FStr<N> {
 
 impl<const N: usize> From<FStr<N>> for [u8; N] {
     fn from(value: FStr<N>) -> Self {
-        value.into_inner()
+        value.into_bytes()
     }
 }
 
@@ -581,7 +599,7 @@ impl<const N: usize> TryFrom<[u8; N]> for FStr<N> {
     type Error = str::Utf8Error;
 
     fn try_from(value: [u8; N]) -> Result<Self, Self::Error> {
-        Self::from_inner(value)
+        Self::from_bytes(value)
     }
 }
 
@@ -589,7 +607,7 @@ impl<const N: usize> TryFrom<&[u8; N]> for FStr<N> {
     type Error = str::Utf8Error;
 
     fn try_from(value: &[u8; N]) -> Result<Self, Self::Error> {
-        Self::from_inner(*value)
+        Self::from_bytes(*value)
     }
 }
 
@@ -814,14 +832,14 @@ mod tests {
     /// Tests `PartialEq` implementations.
     #[test]
     fn eq() {
-        let x = FStr::from_inner(*b"hello").unwrap();
+        let x = FStr::from_bytes(*b"hello").unwrap();
 
         assert_eq!(x, x);
         assert_eq!(&x, &x);
-        assert_eq!(x, FStr::from_inner(*b"hello").unwrap());
-        assert_eq!(FStr::from_inner(*b"hello").unwrap(), x);
-        assert_eq!(&x, &FStr::from_inner(*b"hello").unwrap());
-        assert_eq!(&FStr::from_inner(*b"hello").unwrap(), &x);
+        assert_eq!(x, FStr::from_bytes(*b"hello").unwrap());
+        assert_eq!(FStr::from_bytes(*b"hello").unwrap(), x);
+        assert_eq!(&x, &FStr::from_bytes(*b"hello").unwrap());
+        assert_eq!(&FStr::from_bytes(*b"hello").unwrap(), &x);
 
         assert_eq!(x, "hello");
         assert_eq!("hello", x);
@@ -832,10 +850,10 @@ mod tests {
         assert_eq!(&x as &str, "hello");
         assert_eq!("hello", &x as &str);
 
-        assert_ne!(x, FStr::from_inner(*b"world").unwrap());
-        assert_ne!(FStr::from_inner(*b"world").unwrap(), x);
-        assert_ne!(&x, &FStr::from_inner(*b"world").unwrap());
-        assert_ne!(&FStr::from_inner(*b"world").unwrap(), &x);
+        assert_ne!(x, FStr::from_bytes(*b"world").unwrap());
+        assert_ne!(FStr::from_bytes(*b"world").unwrap(), x);
+        assert_ne!(&x, &FStr::from_bytes(*b"world").unwrap());
+        assert_ne!(&FStr::from_bytes(*b"world").unwrap(), &x);
 
         assert_ne!(x, "world");
         assert_ne!("world", x);
@@ -989,7 +1007,7 @@ mod tests {
     fn display_fmt() {
         use alloc::format;
 
-        let a = FStr::from_inner(*b"you").unwrap();
+        let a = FStr::from_bytes(*b"you").unwrap();
 
         assert_eq!(format!("{}", a), "you");
         assert_eq!(format!("{:5}", a), "you  ");
@@ -998,7 +1016,7 @@ mod tests {
         assert_eq!(format!("{:>8}", a), "     you");
         assert_eq!(format!("{:^9}", a), "   you   ");
 
-        let b = FStr::from_inner(*b"junior").unwrap();
+        let b = FStr::from_bytes(*b"junior").unwrap();
 
         assert_eq!(format!("{}", b), "junior");
         assert_eq!(format!("{:.3}", b), "jun");
@@ -1064,7 +1082,7 @@ mod with_serde {
 
         fn visit_bytes<E: de::Error>(self, value: &[u8]) -> Result<Self::Value, E> {
             if let Ok(inner) = value.try_into() {
-                if let Ok(t) = FStr::from_inner(inner) {
+                if let Ok(t) = FStr::from_bytes(inner) {
                     return Ok(t);
                 }
             }
@@ -1080,7 +1098,7 @@ mod with_serde {
     fn ser_de() {
         use serde_test::Token;
 
-        let x = FStr::from_inner(*b"helloworld").unwrap();
+        let x = FStr::from_bytes(*b"helloworld").unwrap();
         serde_test::assert_tokens(&x, &[Token::Str("helloworld")]);
         serde_test::assert_de_tokens(&x, &[Token::Bytes(b"helloworld")]);
 
