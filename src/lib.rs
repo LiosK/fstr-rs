@@ -100,7 +100,7 @@ pub struct FStr<const N: usize> {
 
 impl<const N: usize> FStr<N> {
     /// The length of the content in bytes.
-    pub const LENGTH: usize = N;
+    pub const LEN: usize = N;
 
     /// Returns a string slice of the content.
     pub const fn as_str(&self) -> &str {
@@ -421,6 +421,10 @@ impl<const N: usize> FStr<N> {
 /// Deprecated synonyms retained for backward compatibility.
 #[doc(hidden)]
 impl<const N: usize> FStr<N> {
+    /// A deprecated synonym for [`FStr::LEN`].
+    #[deprecated(since = "0.2.20", note = "renamed to `LEN`")]
+    pub const LENGTH: usize = Self::LEN;
+
     /// A deprecated synonym for [`FStr::from_bytes`].
     #[deprecated(since = "0.2.20", note = "renamed to `from_bytes`")]
     pub const fn from_inner(utf8_bytes: [u8; N]) -> Result<Self, str::Utf8Error> {
