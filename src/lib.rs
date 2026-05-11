@@ -60,12 +60,12 @@
 //! let mut buffer = fstr::fstr!(24; "&#x{:x};", b'@')?;
 //! assert_eq!(buffer, "&#x40;\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
 //!
-//! let c_str = buffer.slice_to_terminator('\0');
+//! let c_str = buffer.until('\0');
 //! assert_eq!(c_str, "&#x40;");
 //!
 //! use core::fmt::Write as _;
 //! write!(buffer.writer_at(c_str.len()), " COMMERCIAL AT")?;
-//! assert_eq!(buffer.slice_to_terminator('\0'), "&#x40; COMMERCIAL AT");
+//! assert_eq!(buffer.until('\0'), "&#x40; COMMERCIAL AT");
 //! # assert_eq!(buffer, "&#x40; COMMERCIAL AT\0\0\0\0");
 //! # Ok::<_, core::fmt::Error>(())
 //! ```
@@ -290,14 +290,14 @@ impl<const N: usize> FStr<N> {
     /// ```rust
     /// # use fstr::FStr;
     /// let x = FStr::from_bytes(*b"quick brown fox\n")?;
-    /// assert_eq!(x.slice_to_terminator(' '), "quick");
-    /// assert_eq!(x.slice_to_terminator('w'), "quick bro");
-    /// assert_eq!(x.slice_to_terminator('\n'), "quick brown fox");
-    /// assert_eq!(x.slice_to_terminator('🦊'), "quick brown fox\n");
-    /// # assert_eq!(FStr::from_bytes([])?.slice_to_terminator(' '), "");
+    /// assert_eq!(x.until(' '), "quick");
+    /// assert_eq!(x.until('w'), "quick bro");
+    /// assert_eq!(x.until('\n'), "quick brown fox");
+    /// assert_eq!(x.until('🦊'), "quick brown fox\n");
+    /// # assert_eq!(FStr::from_bytes([])?.until(' '), "");
     /// # Ok::<_, core::str::Utf8Error>(())
     /// ```
-    pub fn slice_to_terminator(&self, terminator: char) -> &str {
+    pub fn until(&self, terminator: char) -> &str {
         match self.find(terminator) {
             Some(i) => &self[..i],
             _ => self,
@@ -372,7 +372,7 @@ impl<const N: usize> FStr<N> {
     /// ```rust
     /// # use fstr::FStr;
     /// let x = FStr::<10>::from_fmt(format_args!("  {:04x}  ", 0x42), b'\0')?;
-    /// assert_eq!(x.slice_to_terminator('\0'), "  0042  ");
+    /// assert_eq!(x.until('\0'), "  0042  ");
     /// assert_eq!(x, "  0042  \0\0");
     /// # Ok::<_, core::fmt::Error>(())
     /// ```
@@ -457,6 +457,12 @@ impl<const N: usize> FStr<N> {
         self.into_bytes()
     }
 
+    /// A deprecated synonym for [`FStr::until`].
+    #[deprecated(since = "0.2.20", note = "renamed to `until`")]
+    pub fn slice_to_terminator(&self, terminator: char) -> &str {
+        self.until(terminator)
+    }
+
     /// A deprecated synonym for [`FStr::writer_at(0)`](FStr::writer_at).
     #[deprecated(since = "0.2.13", note = "use `writer_at(0)` instead")]
     pub fn writer(&mut self) -> Cursor<&mut Self> {
@@ -512,7 +518,7 @@ impl<const N: usize> Default for FStr<N> {
 impl<const N: usize> fmt::Debug for FStr<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct(match fstr!(32; "FStr<{}>", N) {
-            Ok(ref buffer) => buffer.slice_to_terminator('\0'),
+            Ok(ref buffer) => buffer.until('\0'),
             Err(_) => "FStr", // unreachable
         })
         .field("inner", &self.as_str())
