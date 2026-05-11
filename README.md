@@ -23,7 +23,7 @@ assert_eq!(y, "bar");
 y.make_ascii_uppercase();
 assert_eq!(y, "BAR");
 
-const K: FStr<8> = FStr::from_str_unwrap("constant");
+const K: FStr<8> = FStr::from_str_const("constant");
 assert_eq!(K, "constant");
 ```
 
@@ -44,8 +44,8 @@ assert!(s.parse::<FStr<20>>().is_err()); // too large
 ```
 
 ```rust
-let x: FStr<10> = FStr::from_str_unwrap("helloworld");
-let y: FStr<12> = FStr::from_str_unwrap("helloworld  ");
+let x: FStr<10> = FStr::from_str_const("helloworld");
+let y: FStr<12> = FStr::from_str_const("helloworld  ");
 
 // This code does not compile because `FStr` of different lengths cannot mix.
 if x != y {

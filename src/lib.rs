@@ -20,7 +20,7 @@
 //! y.make_ascii_uppercase();
 //! assert_eq!(y, "BAR");
 //!
-//! const K: FStr<8> = FStr::from_str_unwrap("constant");
+//! const K: FStr<8> = FStr::from_str_const("constant");
 //! assert_eq!(K, "constant");
 //! # Ok::<_, core::str::Utf8Error>(())
 //! ```
@@ -44,8 +44,8 @@
 //!
 //! ```compile_fail
 //! # use fstr::FStr;
-//! let x: FStr<10> = FStr::from_str_unwrap("helloworld");
-//! let y: FStr<12> = FStr::from_str_unwrap("helloworld  ");
+//! let x: FStr<10> = FStr::from_str_const("helloworld");
+//! let y: FStr<12> = FStr::from_str_const("helloworld  ");
 //!
 //! // This code does not compile because `FStr` of different lengths cannot mix.
 //! if x != y {
@@ -165,11 +165,11 @@ impl<const N: usize> FStr<N> {
     /// # use fstr::FStr;
     /// use core::str::FromStr;
     ///
-    /// const K: FStr<3> = FStr::from_str_unwrap("foo");
+    /// const K: FStr<3> = FStr::from_str_const("foo");
     /// assert_eq!(K, FStr::from_str("foo").unwrap());
     /// ```
     #[track_caller]
-    pub const fn from_str_unwrap(s: &str) -> Self {
+    pub const fn from_str_const(s: &str) -> Self {
         match Self::try_from_str(s) {
             Ok(t) => t,
             _ => panic!("invalid byte length"),
@@ -435,6 +435,13 @@ impl<const N: usize> FStr<N> {
     #[deprecated(since = "0.2.20", note = "renamed to `from_bytes_unchecked`")]
     pub const unsafe fn from_inner_unchecked(utf8_bytes: [u8; N]) -> Self {
         unsafe { Self::from_bytes_unchecked(utf8_bytes) }
+    }
+
+    /// A deprecated synonym for [`FStr::from_str_const`].
+    #[deprecated(since = "0.2.20", note = "renamed to `from_str_const`")]
+    #[track_caller]
+    pub const fn from_str_unwrap(s: &str) -> Self {
+        Self::from_str_const(s)
     }
 
     /// A deprecated synonym for [`FStr::from_ascii_filler`].
