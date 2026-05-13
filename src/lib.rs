@@ -422,30 +422,30 @@ impl<const N: usize> FStr<N> {
 #[doc(hidden)]
 impl<const N: usize> FStr<N> {
     /// A deprecated synonym for [`FStr::LEN`].
-    #[deprecated(since = "0.2.20", note = "renamed to `LEN`")]
+    // #[deprecated(since = "0.2.20", note = "renamed to `LEN`")]
     pub const LENGTH: usize = Self::LEN;
 
     /// A deprecated synonym for [`FStr::from_bytes`].
-    #[deprecated(since = "0.2.20", note = "renamed to `from_bytes`")]
+    // #[deprecated(since = "0.2.20", note = "renamed to `from_bytes`")]
     pub const fn from_inner(utf8_bytes: [u8; N]) -> Result<Self, str::Utf8Error> {
         Self::from_bytes(utf8_bytes)
     }
 
     /// A deprecated synonym for [`FStr::from_bytes_unchecked`].
-    #[deprecated(since = "0.2.20", note = "renamed to `from_bytes_unchecked`")]
+    // #[deprecated(since = "0.2.20", note = "renamed to `from_bytes_unchecked`")]
     pub const unsafe fn from_inner_unchecked(utf8_bytes: [u8; N]) -> Self {
         unsafe { Self::from_bytes_unchecked(utf8_bytes) }
     }
 
     /// A deprecated synonym for [`FStr::from_str_const`].
-    #[deprecated(since = "0.2.20", note = "renamed to `from_str_const`")]
+    // #[deprecated(since = "0.2.20", note = "renamed to `from_str_const`")]
     #[track_caller]
     pub const fn from_str_unwrap(s: &str) -> Self {
         Self::from_str_const(s)
     }
 
     /// A deprecated synonym for [`FStr::from_str_fitted`].
-    #[deprecated(since = "0.2.20", note = "renamed to `from_str_fitted`")]
+    // #[deprecated(since = "0.2.20", note = "renamed to `from_str_fitted`")]
     #[track_caller]
     pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
         Self::from_str_fitted(s, filler)
@@ -459,13 +459,13 @@ impl<const N: usize> FStr<N> {
     }
 
     /// A deprecated synonym for [`FStr::into_bytes`].
-    #[deprecated(since = "0.2.20", note = "renamed to `into_bytes`")]
+    // #[deprecated(since = "0.2.20", note = "renamed to `into_bytes`")]
     pub const fn into_inner(self) -> [u8; N] {
         self.into_bytes()
     }
 
     /// A deprecated synonym for [`FStr::until`].
-    #[deprecated(since = "0.2.20", note = "renamed to `until`")]
+    // #[deprecated(since = "0.2.20", note = "renamed to `until`")]
     pub fn slice_to_terminator(&self, terminator: char) -> &str {
         self.until(terminator)
     }
