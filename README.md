@@ -60,12 +60,12 @@ NUL-terminated buffer and some helper methods.
 let mut buffer = fstr::fstr!(24; "&#x{:x};", b'@')?;
 assert_eq!(buffer, "&#x40;\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
 
-let c_str = buffer.until('\0');
+let c_str = buffer.slice_until('\0');
 assert_eq!(c_str, "&#x40;");
 
 use core::fmt::Write as _;
 write!(buffer.writer_at(c_str.len()), " COMMERCIAL AT")?;
-assert_eq!(buffer.until('\0'), "&#x40; COMMERCIAL AT");
+assert_eq!(buffer.slice_until('\0'), "&#x40; COMMERCIAL AT");
 ```
 
 ## Crate features
