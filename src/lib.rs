@@ -215,15 +215,15 @@ impl<const N: usize> FStr<N> {
     ///
     /// ```rust
     /// # use fstr::FStr;
-    /// assert_eq!(FStr::<5>::from_str_fitted("seasons", b' '), "seaso");
-    /// assert_eq!(FStr::<7>::from_str_fitted("seasons", b' '), "seasons");
-    /// assert_eq!(FStr::<9>::from_str_fitted("seasons", b' '), "seasons  ");
+    /// assert_eq!(FStr::<5>::from_str_lossy("seasons", b' '), "seaso");
+    /// assert_eq!(FStr::<7>::from_str_lossy("seasons", b' '), "seasons");
+    /// assert_eq!(FStr::<9>::from_str_lossy("seasons", b' '), "seasons  ");
     ///
     /// assert_eq!("😂🤪😱👻".len(), 16);
-    /// assert_eq!(FStr::<15>::from_str_fitted("😂🤪😱👻", b'.'), "😂🤪😱...");
+    /// assert_eq!(FStr::<15>::from_str_lossy("😂🤪😱👻", b'.'), "😂🤪😱...");
     /// ```
     #[track_caller]
-    pub const fn from_str_fitted(s: &str, filler: u8) -> Self {
+    pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
         if N == 0 {
             return Self::from_ascii_filler(filler); // filler check done there
         }
@@ -353,7 +353,7 @@ impl<const N: usize> FStr<N> {
     /// Creates a value from [`fmt::Arguments`], with `filler` bytes appended if the formatted
     /// string is shorter than the type's length.
     ///
-    /// The behavior of this function is different from [`FStr::from_str_fitted`] and [`write!`]
+    /// The behavior of this function is different from [`FStr::from_str_lossy`] and [`write!`]
     /// over [`FStr::writer_at`] in that it does not truncate the formatted string or result in a
     /// partially written `FStr` value; when it returns `Ok`, the result contains the complete
     /// content of the formatted string, with `filler` bytes appended where necessary.
@@ -442,13 +442,6 @@ impl<const N: usize> FStr<N> {
     #[track_caller]
     pub const fn from_str_unwrap(s: &str) -> Self {
         Self::from_str_const(s)
-    }
-
-    /// A deprecated synonym for [`FStr::from_str_fitted`].
-    // #[deprecated(since = "0.2.20", note = "renamed to `from_str_fitted`")]
-    #[track_caller]
-    pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
-        Self::from_str_fitted(s, filler)
     }
 
     /// A deprecated synonym for [`FStr::from_ascii_filler`].
@@ -911,25 +904,25 @@ mod tests {
         }
     }
 
-    /// Tests `from_str_fitted()` against edge cases.
+    /// Tests `from_str_lossy()` against edge cases.
     #[test]
-    fn from_str_fitted_edge() {
-        assert!(FStr::<0>::from_str_fitted("", b' ').is_empty());
-        assert!(FStr::<0>::from_str_fitted("pizza", b' ').is_empty());
-        assert!(FStr::<0>::from_str_fitted("🥹🥹", b' ').is_empty());
+    fn from_str_lossy_edge() {
+        assert!(FStr::<0>::from_str_lossy("", b' ').is_empty());
+        assert!(FStr::<0>::from_str_lossy("pizza", b' ').is_empty());
+        assert!(FStr::<0>::from_str_lossy("🥹🥹", b' ').is_empty());
 
-        assert_eq!(FStr::<1>::from_str_fitted("", b' '), " ");
-        assert_eq!(FStr::<1>::from_str_fitted("pizza", b' '), "p");
-        assert_eq!(FStr::<1>::from_str_fitted("🥹🥹", b' '), " ");
+        assert_eq!(FStr::<1>::from_str_lossy("", b' '), " ");
+        assert_eq!(FStr::<1>::from_str_lossy("pizza", b' '), "p");
+        assert_eq!(FStr::<1>::from_str_lossy("🥹🥹", b' '), " ");
 
-        assert_eq!(FStr::<2>::from_str_fitted("🥹🥹", b' '), "  ");
-        assert_eq!(FStr::<3>::from_str_fitted("🥹🥹", b' '), "   ");
-        assert_eq!(FStr::<4>::from_str_fitted("🥹🥹", b' '), "🥹");
-        assert_eq!(FStr::<5>::from_str_fitted("🥹🥹", b' '), "🥹 ");
-        assert_eq!(FStr::<6>::from_str_fitted("🥹🥹", b' '), "🥹  ");
-        assert_eq!(FStr::<7>::from_str_fitted("🥹🥹", b' '), "🥹   ");
-        assert_eq!(FStr::<8>::from_str_fitted("🥹🥹", b' '), "🥹🥹");
-        assert_eq!(FStr::<9>::from_str_fitted("🥹🥹", b' '), "🥹🥹 ");
+        assert_eq!(FStr::<2>::from_str_lossy("🥹🥹", b' '), "  ");
+        assert_eq!(FStr::<3>::from_str_lossy("🥹🥹", b' '), "   ");
+        assert_eq!(FStr::<4>::from_str_lossy("🥹🥹", b' '), "🥹");
+        assert_eq!(FStr::<5>::from_str_lossy("🥹🥹", b' '), "🥹 ");
+        assert_eq!(FStr::<6>::from_str_lossy("🥹🥹", b' '), "🥹  ");
+        assert_eq!(FStr::<7>::from_str_lossy("🥹🥹", b' '), "🥹   ");
+        assert_eq!(FStr::<8>::from_str_lossy("🥹🥹", b' '), "🥹🥹");
+        assert_eq!(FStr::<9>::from_str_lossy("🥹🥹", b' '), "🥹🥹 ");
     }
 
     /// Tests `FromStr` implementation.
@@ -1016,7 +1009,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn writer_at_index_middle_of_a_char() {
-        FStr::<8>::from_str_fitted("🙏", b' ').writer_at(1);
+        FStr::<8>::from_str_lossy("🙏", b' ').writer_at(1);
     }
 
     #[test]
