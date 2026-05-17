@@ -1,5 +1,32 @@
 use fstr::FStr;
 
+/// Tests `PartialOrd` implementations.
+#[test]
+fn test_ord_partial_ord() {
+    use std::collections::BTreeSet;
+
+    let mut set = BTreeSet::new();
+    set.insert(FStr::try_from(b"apple").unwrap());
+    set.insert(FStr::try_from(b"zebra").unwrap());
+    set.insert(FStr::try_from(b"apple").unwrap());
+    set.insert(FStr::try_from(b"berry").unwrap());
+
+    let vec: Vec<_> = set.into_iter().collect();
+    assert_eq!(vec.len(), 3);
+    assert_eq!(vec[0], "apple");
+    assert_eq!(vec[1], "berry");
+    assert_eq!(vec[2], "zebra");
+
+    let a = FStr::try_from(b"apple").unwrap();
+    let b = FStr::try_from(b"berry").unwrap();
+    assert!(a < b);
+    assert!(a <= b);
+    assert!(b > a);
+    assert!(b >= a);
+    assert!(a <= a);
+    assert!(a >= a);
+}
+
 /// Tests `Hash` and `Borrow` implementations using `HashSet`.
 #[test]
 fn hash_borrow() {
