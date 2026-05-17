@@ -422,7 +422,7 @@ impl<const N: usize> FStr<N> {
 #[doc(hidden)]
 impl<const N: usize> FStr<N> {
     /// A deprecated synonym for [`FStr::LEN`].
-    // #[deprecated(since = "0.2.20", note = "renamed to `LEN`")]
+    #[deprecated(since = "0.2.20", note = "renamed to `LEN`")]
     pub const LENGTH: usize = Self::LEN;
 
     /// A deprecated synonym for [`FStr::from_bytes`].
@@ -438,7 +438,7 @@ impl<const N: usize> FStr<N> {
     }
 
     /// A deprecated synonym for [`FStr::from_str_const`].
-    // #[deprecated(since = "0.2.20", note = "renamed to `from_str_const`")]
+    #[deprecated(since = "0.2.20", note = "renamed to `from_str_const`")]
     #[track_caller]
     pub const fn from_str_unwrap(s: &str) -> Self {
         Self::from_str_const(s)
@@ -452,13 +452,13 @@ impl<const N: usize> FStr<N> {
     }
 
     /// A deprecated synonym for [`FStr::into_bytes`].
-    // #[deprecated(since = "0.2.20", note = "renamed to `into_bytes`")]
+    #[deprecated(since = "0.2.20", note = "renamed to `into_bytes`")]
     pub const fn into_inner(self) -> [u8; N] {
         self.into_bytes()
     }
 
     /// A deprecated synonym for [`FStr::slice_up_to`].
-    // #[deprecated(since = "0.2.20", note = "renamed to `slice_up_to`")]
+    #[deprecated(since = "0.2.20", note = "renamed to `slice_up_to`")]
     pub fn slice_to_terminator(&self, terminator: char) -> &str {
         self.slice_up_to(terminator)
     }
