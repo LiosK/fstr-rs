@@ -135,7 +135,8 @@ impl<const N: usize> FStr<N> {
     /// # Examples
     ///
     /// ```rust
-    /// # use fstr::FStr;
+    /// use fstr::FStr;
+    ///
     /// let x = FStr::from_bytes(*b"foo")?;
     /// assert_eq!(x, "foo");
     /// # Ok::<_, core::str::Utf8Error>(())
@@ -163,8 +164,8 @@ impl<const N: usize> FStr<N> {
     /// # Examples
     ///
     /// ```rust
-    /// # use fstr::FStr;
-    /// use core::str::FromStr;
+    /// use core::str::FromStr as _;
+    /// use fstr::FStr;
     ///
     /// const K: FStr<3> = FStr::from_str_const("foo");
     /// assert_eq!(K, FStr::from_str("foo").unwrap());
@@ -216,7 +217,8 @@ impl<const N: usize> FStr<N> {
     /// # Examples
     ///
     /// ```rust
-    /// # use fstr::FStr;
+    /// use fstr::FStr;
+    ///
     /// assert_eq!(FStr::<5>::from_str_lossy("seasons", b' '), "seaso");
     /// assert_eq!(FStr::<7>::from_str_lossy("seasons", b' '), "seasons");
     /// assert_eq!(FStr::<9>::from_str_lossy("seasons", b' '), "seasons  ");
@@ -268,7 +270,8 @@ impl<const N: usize> FStr<N> {
     /// # Examples
     ///
     /// ```rust
-    /// # use fstr::FStr;
+    /// use fstr::FStr;
+    ///
     /// assert_eq!(FStr::<3>::from_ascii_filler(b'.'), "...");
     /// assert_eq!(FStr::<5>::from_ascii_filler(b'-'), "-----");
     /// # assert_eq!(FStr::<0>::from_ascii_filler(b'\0'), "");
@@ -290,7 +293,8 @@ impl<const N: usize> FStr<N> {
     /// # Examples
     ///
     /// ```rust
-    /// # use fstr::FStr;
+    /// use fstr::FStr;
+    ///
     /// let x = FStr::from_bytes(*b"quick brown fox\n")?;
     /// assert_eq!(x.slice_up_to(' '), "quick");
     /// assert_eq!(x.slice_up_to('w'), "quick bro");
@@ -321,8 +325,8 @@ impl<const N: usize> FStr<N> {
     /// # Examples
     ///
     /// ```rust
-    /// # use fstr::FStr;
     /// use core::fmt::Write as _;
+    /// use fstr::FStr;
     ///
     /// let mut a = FStr::<12>::from_ascii_filler(b'.');
     /// write!(a.writer_at(0), "0x{:06x}!", 0x42)?;
@@ -372,7 +376,8 @@ impl<const N: usize> FStr<N> {
     /// # Examples
     ///
     /// ```rust
-    /// # use fstr::FStr;
+    /// use fstr::FStr;
+    ///
     /// let x = FStr::<10>::from_fmt(format_args!("  {:04x}  ", 0x42), b'\0')?;
     /// assert_eq!(x.slice_up_to('\0'), "  0042  ");
     /// assert_eq!(x, "  0042  \0\0");
@@ -508,7 +513,8 @@ impl<const N: usize> Default for FStr<N> {
     /// # Examples
     ///
     /// ```rust
-    /// # use fstr::FStr;
+    /// use fstr::FStr;
+    ///
     /// assert_eq!(FStr::<4>::default(), "    ");
     /// assert_eq!(FStr::<8>::default(), "        ");
     /// ```
@@ -677,8 +683,8 @@ macro_rules! fstr {
 /// # Examples
 ///
 /// ```rust
-/// # use fstr::FStr;
 /// use core::fmt::Write as _;
+/// use fstr::FStr;
 ///
 /// let mut buffer = FStr::<20>::from_ascii_filler(b'.');
 /// assert_eq!(buffer, "....................");
