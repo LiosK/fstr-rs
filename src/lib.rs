@@ -157,7 +157,8 @@ impl<const N: usize> FStr<N> {
         Self { inner: utf8_bytes }
     }
 
-    /// A `const`-friendly equivalent of `Self::from_str(s).unwrap()`.
+    /// A `const`-friendly equivalent of `Self::from_str(s).unwrap()` and
+    /// `s..parse::<Self>().unwrap()`.
     ///
     /// # Examples
     ///
@@ -167,6 +168,7 @@ impl<const N: usize> FStr<N> {
     ///
     /// const K: FStr<3> = FStr::from_str_const("foo");
     /// assert_eq!(K, FStr::from_str("foo").unwrap());
+    /// assert_eq!(K, "foo".parse::<FStr<_>>().unwrap());
     /// ```
     #[track_caller]
     pub const fn from_str_const(s: &str) -> Self {
