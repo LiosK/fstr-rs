@@ -1132,24 +1132,17 @@ mod with_serde {
         type Value = FStr<N>;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(formatter, "a fixed-length string")
+            formatter.write_str("a fixed-length string")
         }
 
         fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
-            value.parse().map_err(de::Error::custom)
+            value.try_into().map_err(de::Error::custom)
         }
 
         fn visit_bytes<E: de::Error>(self, value: &[u8]) -> Result<Self::Value, E> {
-            if let Ok(inner) = value.try_into() {
-                if let Ok(t) = FStr::from_bytes(inner) {
-                    return Ok(t);
-                }
-            }
-
-            Err(de::Error::invalid_value(
-                de::Unexpected::Bytes(value),
-                &self,
-            ))
+            value
+                .try_into()
+                .map_err(|_| de::Error::invalid_value(de::Unexpected::Bytes(value), &self))
         }
     }
 
@@ -1170,9 +1163,10 @@ mod with_serde {
             ])],
         );
 
+        let e = FStr::<5>::try_from_str("helloworld").unwrap_err();
         serde_test::assert_de_tokens_error::<FStr<5>>(
             &[Token::Str("helloworld")],
-            "invalid byte length of 10 (expected: 5)",
+            fstr!(256; "{}", e).unwrap().slice_up_to('\0'),
         );
         serde_test::assert_de_tokens_error::<FStr<5>>(
             &[Token::Bytes(b"helloworld")],
