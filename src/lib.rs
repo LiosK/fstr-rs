@@ -44,8 +44,8 @@
 //!
 //! ```compile_fail
 //! # use fstr::FStr;
-//! let x: FStr<10> = FStr::from_str_const("helloworld");
-//! let y: FStr<12> = FStr::from_str_const("helloworld  ");
+//! let x: FStr<10> = FStr::try_from("helloworld")?;
+//! let y: FStr<12> = FStr::try_from("helloworld  ")?;
 //!
 //! // This code does not compile because `FStr` of different lengths cannot mix.
 //! if x != y {
@@ -158,17 +158,15 @@ impl<const N: usize> FStr<N> {
         Self { inner: utf8_bytes }
     }
 
-    /// A `const`-friendly equivalent of `Self::from_str(s).unwrap()` and
-    /// `s..parse::<Self>().unwrap()`.
+    /// A `const`-friendly equivalent of `FStr::try_from(&str).unwrap()` and `&str.parse().unwrap()`.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use core::str::FromStr as _;
     /// use fstr::FStr;
     ///
     /// const K: FStr<3> = FStr::from_str_const("foo");
-    /// assert_eq!(K, FStr::from_str("foo").unwrap());
+    /// assert_eq!(K, FStr::try_from("foo").unwrap());
     /// assert_eq!(K, "foo".parse::<FStr<_>>().unwrap());
     /// ```
     #[track_caller]
@@ -620,6 +618,14 @@ impl<const N: usize> str::FromStr for FStr<N> {
     }
 }
 
+impl<const N: usize> TryFrom<&str> for FStr<N> {
+    type Error = LengthError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::try_from_str(value)
+    }
+}
+
 impl<const N: usize> TryFrom<[u8; N]> for FStr<N> {
     type Error = str::Utf8Error;
 
@@ -833,7 +839,7 @@ mod with_string {
         type Error = LengthError;
 
         fn try_from(value: String) -> Result<Self, Self::Error> {
-            value.parse()
+            value.as_str().try_into()
         }
     }
 
@@ -947,6 +953,20 @@ mod tests {
         assert_eq!("😂".parse::<FStr<4>>().unwrap(), "😂");
     }
 
+    /// Tests `TryFrom<&str>` implementation.
+    #[test]
+    fn try_from_str() {
+        assert!(FStr::<4>::try_from("ceremony").is_err());
+        assert!(FStr::<12>::try_from("strategy").is_err());
+        assert!(FStr::<8>::try_from("parallel").is_ok());
+        assert_eq!(FStr::<8>::try_from("parallel").unwrap(), "parallel");
+
+        assert!(FStr::<2>::try_from("😂").is_err());
+        assert!(FStr::<6>::try_from("😂").is_err());
+        assert!(FStr::<4>::try_from("😂").is_ok());
+        assert_eq!(FStr::<4>::try_from("😂").unwrap(), "😂");
+    }
+
     /// Tests `TryFrom<[u8; N]>` and `TryFrom<&[u8; N]>` implementations.
     #[test]
     fn try_from_array() {
@@ -967,6 +987,20 @@ mod tests {
         assert!(FStr::<7>::try_from([0xff; 8].as_slice()).is_err());
         assert!(FStr::<8>::try_from([0xff; 8].as_slice()).is_err());
         assert!(FStr::<9>::try_from([0xff; 8].as_slice()).is_err());
+    }
+
+    /// Tests `TryFrom<String>` implementation.
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn try_from_string() {
+        use alloc::string::String;
+        assert!(FStr::<4>::try_from(String::from("ceremony")).is_err());
+        assert!(FStr::<12>::try_from(String::from("strategy")).is_err());
+        assert!(FStr::<8>::try_from(String::from("parallel")).is_ok());
+        assert_eq!(
+            FStr::<8>::try_from(String::from("parallel")).unwrap(),
+            "parallel"
+        );
     }
 
     /// Tests `fmt::Write` implementation of `Cursor`.

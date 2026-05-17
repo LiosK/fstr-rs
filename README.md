@@ -44,8 +44,8 @@ assert!(s.parse::<FStr<20>>().is_err()); // too large
 ```
 
 ```rust
-let x: FStr<10> = FStr::from_str_const("helloworld");
-let y: FStr<12> = FStr::from_str_const("helloworld  ");
+let x: FStr<10> = FStr::try_from("helloworld")?;
+let y: FStr<12> = FStr::try_from("helloworld  ")?;
 
 // This code does not compile because `FStr` of different lengths cannot mix.
 if x != y {
