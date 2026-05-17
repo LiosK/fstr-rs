@@ -1,6 +1,7 @@
 # FStr: a stack-allocated fixed-length string type
 
 [![Crates.io](https://img.shields.io/crates/v/fstr)](https://crates.io/crates/fstr)
+[![Docs.rs](https://img.shields.io/docsrs/fstr)](https://docs.rs/fstr)
 [![License](https://img.shields.io/crates/l/fstr)](https://github.com/LiosK/fstr-rs/blob/main/LICENSE)
 
 This crate provides a new type wrapping `[u8; N]` to handle a stack-allocated
@@ -80,7 +81,3 @@ assert_eq!(buffer.slice_up_to('\0'), "&#x40; COMMERCIAL AT");
 ## License
 
 Licensed under the Apache License, Version 2.0.
-
-## See also
-
-- [docs.rs/fstr](https://docs.rs/fstr)
