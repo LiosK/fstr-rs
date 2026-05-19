@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Refactored `from_str_lossy()` to eliminate redundant array initialization.
+- Refactored `from_fmt()` to simplify unsafe operations.
 - Added CHANGELOG.md to the repository.
 
 ## v0.2.20 - 2026-05-17
