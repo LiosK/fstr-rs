@@ -242,21 +242,35 @@ impl<const N: usize> FStr<N> {
         } else if is_utf8_char_boundary(s.as_bytes()[N - 3]) {
             N - 3
         } else {
-            unreachable!() // invalid UTF-8 sequence
+            unreachable!() // invalid UTF-8 sequence (a UTF-8 character is at most 4 bytes long)
         };
 
-        let mut inner = [filler; N];
-        debug_assert!(len <= s.len() && len <= inner.len());
+        let mut inner = mem::MaybeUninit::<[u8; N]>::uninit();
+        let inner_mut_ptr = inner.as_mut_ptr().cast::<u8>();
+        debug_assert!(len <= s.len() && len <= N);
         // SAFETY: ok because:
-        // - Pointers come from references and thus are valid and aligned.
-        // - `len` is at most the length of `s` and `inner`, so the source and destination are
-        //   valid for read/write of `len` bytes.
-        // - `s` and `inner` do not overlap because they are independent arrays.
-        unsafe { ptr::copy_nonoverlapping(s.as_ptr(), inner.as_mut_ptr(), len) };
+        // - `[T; N]` and `MaybeUninit<[T; N]>` have the same layout.
+        // - The pointers come from references and thus are valid and aligned.
+        // - `len` is at most the length of `s` and `inner`, so the source and destination are valid
+        //   for read and write, respectively, of `len` bytes.
+        // - `s` and `inner` are distinct allocations and thus do not overlap.
+        // - The operation does not read the uninitialized `inner`.
+        unsafe { ptr::copy_nonoverlapping(s.as_ptr(), inner_mut_ptr, len) };
 
-        // SAFETY: ok because `s` is from a string slice (truncated at a char boundary, if
-        // applicable) and `inner` consists of `s` and trailing ASCII fillers
-        unsafe { Self::from_bytes_unchecked(inner) }
+        // SAFETY: ok because:
+        // - `[T; N]` and `MaybeUninit<[T; N]>` have the same layout.
+        // - The pointer comes from a reference and thus are valid and aligned.
+        // - `len` is at most the length of `inner` (`N`), so `inner_mut_ptr.add(len)` is valid for
+        //   write of `N - len` bytes, even if `len == N`.
+        // - The operation does not read the uninitialized `inner`.
+        unsafe { ptr::write_bytes(inner_mut_ptr.add(len), filler, N - len) };
+
+        // SAFETY: ok because:
+        // - `inner[..len]` is initialized with a valid UTF-8 sequence copied from `s` (truncated at
+        //   a char boundary, if applicable).
+        // - `inner[len..]` is initialized with `filler` bytes, which are valid ASCII and thus valid
+        //   UTF-8.
+        unsafe { Self::from_bytes_unchecked(inner.assume_init()) }
     }
 
     /// Creates a value that is filled with an ASCII byte.
