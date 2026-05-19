@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.2.21 - unreleased
 
+- Enabled deprecation warnings for `from_inner()` and `from_inner_unchecked()`.
 - Refactored `from_str_lossy()` to eliminate redundant array initialization.
 - Refactored `from_fmt()` to simplify unsafe operations.
 - Added CHANGELOG.md to the repository.

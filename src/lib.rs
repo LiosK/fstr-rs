@@ -456,7 +456,7 @@ impl<const N: usize> FStr<N> {
     pub const LENGTH: usize = Self::LEN;
 
     /// A deprecated synonym for [`FStr::from_bytes`].
-    // #[deprecated(since = "0.2.20", note = "renamed to `from_bytes`")]
+    #[deprecated(since = "0.2.21", note = "renamed to `from_bytes`")]
     pub const fn from_inner(utf8_bytes: [u8; N]) -> Result<Self, str::Utf8Error> {
         Self::from_bytes(utf8_bytes)
     }
@@ -466,7 +466,7 @@ impl<const N: usize> FStr<N> {
     /// # Safety
     ///
     /// See the safety requirements of `FStr::from_bytes_unchecked`.
-    // #[deprecated(since = "0.2.20", note = "renamed to `from_bytes_unchecked`")]
+    #[deprecated(since = "0.2.21", note = "renamed to `from_bytes_unchecked`")]
     pub const unsafe fn from_inner_unchecked(utf8_bytes: [u8; N]) -> Self {
         unsafe { Self::from_bytes_unchecked(utf8_bytes) }
     }
