@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.2.21 - unreleased
+## v0.2.21 - 2026-05-19
 
 - Enabled deprecation warnings for `from_inner()` and `from_inner_unchecked()`.
 - Refactored `from_str_lossy()` to eliminate redundant array initialization.
