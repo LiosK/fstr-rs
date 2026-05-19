@@ -462,6 +462,10 @@ impl<const N: usize> FStr<N> {
     }
 
     /// A deprecated synonym for [`FStr::from_bytes_unchecked`].
+    ///
+    /// # Safety
+    ///
+    /// See the safety requirements of `FStr::from_bytes_unchecked`.
     // #[deprecated(since = "0.2.20", note = "renamed to `from_bytes_unchecked`")]
     pub const unsafe fn from_inner_unchecked(utf8_bytes: [u8; N]) -> Self {
         unsafe { Self::from_bytes_unchecked(utf8_bytes) }
