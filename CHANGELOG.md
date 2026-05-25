@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Minor refactoring.
+
 ## v0.2.21 - 2026-05-19
 
 - Enabled deprecation warnings for `from_inner()` and `from_inner_unchecked()`.

@@ -226,9 +226,6 @@ impl<const N: usize> FStr<N> {
     /// ```
     #[track_caller]
     pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
-        if N == 0 {
-            return Self::from_ascii_filler(filler); // filler check done there
-        }
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
 
         let len = if s.len() <= N {
