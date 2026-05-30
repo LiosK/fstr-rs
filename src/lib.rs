@@ -85,7 +85,9 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-use core::{borrow, error, fmt, hash, mem, ops, ptr, str};
+mod util;
+
+use core::{borrow, error, fmt, hash, mem, ops, slice, str};
 
 /// A stack-allocated fixed-length string type.
 ///
@@ -244,30 +246,14 @@ impl<const N: usize> FStr<N> {
         };
 
         let mut inner = mem::MaybeUninit::<[u8; N]>::uninit();
-        let inner_mut_ptr = inner.as_mut_ptr().cast::<u8>();
+        let mut w = util::UninitWriter::new(&mut inner);
+        // SAFETY: ok because the above logic guarantees `len <= s.len()` and `len <= N`
         debug_assert!(len <= s.len() && len <= N);
-        // SAFETY: ok because:
-        // - `[T; N]` and `MaybeUninit<[T; N]>` have the same layout.
-        // - The pointers come from references and thus are valid and aligned.
-        // - `len` is at most the length of `s` and `inner`, so the source and destination are valid
-        //   for read and write, respectively, of `len` bytes.
-        // - `s` and `inner` are distinct allocations and thus do not overlap.
-        // - The operation does not read the uninitialized `inner`.
-        unsafe { ptr::copy_nonoverlapping(s.as_ptr(), inner_mut_ptr, len) };
+        unsafe { w.write_unchecked(slice::from_raw_parts(s.as_ptr(), len)) };
+        w.fill_and_finish(filler);
 
-        // SAFETY: ok because:
-        // - `[T; N]` and `MaybeUninit<[T; N]>` have the same layout.
-        // - The pointer comes from a reference and thus are valid and aligned.
-        // - `len` is at most the length of `inner` (`N`), so `inner_mut_ptr.add(len)` is valid for
-        //   write of `N - len` bytes, even if `len == N`.
-        // - The operation does not read the uninitialized `inner`.
-        unsafe { ptr::write_bytes(inner_mut_ptr.add(len), filler, N - len) };
-
-        // SAFETY: ok because:
-        // - `inner[..len]` is initialized with a valid UTF-8 sequence copied from `s` (truncated at
-        //   a char boundary, if applicable).
-        // - `inner[len..]` is initialized with `filler` bytes, which are valid ASCII and thus valid
-        //   UTF-8.
+        // SAFETY: ok because the entire array has been initialized with a valid string slice `s`
+        // (truncated at a char boundary, if applicable) and trailing ASCII filler bytes
         unsafe { Self::from_bytes_unchecked(inner.assume_init()) }
     }
 
@@ -397,50 +383,14 @@ impl<const N: usize> FStr<N> {
     pub fn from_fmt(args: fmt::Arguments<'_>, filler: u8) -> Result<Self, fmt::Error> {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
 
-        // SAFETY:
-        // - `pointer` must be aligned and valid for writes of `length` bytes.
-        // - `pointer` must point to a location that never overlaps with the source of any
-        //   `write_str` call.
-        struct Writer {
-            pointer: *mut u8,
-            length: usize,
-        }
-
-        impl fmt::Write for Writer {
-            fn write_str(&mut self, s: &str) -> fmt::Result {
-                if s.len() <= self.length {
-                    // SAFETY: as long as `Writer`'s safety requirements are satisfied:
-                    // - `s.as_ptr()` is valid for reads of `s.len()` bytes because `s` is a valid
-                    //   string slice.
-                    // - `self.pointer` is valid for writes of `s.len()` bytes because
-                    //   `s.len() <= self.length`.
-                    unsafe { ptr::copy_nonoverlapping(s.as_ptr(), self.pointer, s.len()) };
-                    // SAFETY: as long as `Writer`'s safety requirements are satisfied:
-                    // - Rust ensures that `s.len()` does not exceed `isize::MAX`.
-                    // - `self.pointer.add(s.len())` is valid for writes of `self.length - s.len()`
-                    //   bytes.
-                    self.length -= s.len();
-                    unsafe { self.pointer = self.pointer.add(s.len()) };
-                    Ok(())
-                } else {
-                    Err(fmt::Error)
-                }
-            }
-        }
-
         let mut inner = mem::MaybeUninit::<[u8; N]>::uninit();
-        let pointer = inner.as_mut_ptr().cast::<u8>();
-        let mut w = Writer { pointer, length: N }; // `Writer`'s safety requirements are satisfied
+        let mut w = util::UninitWriter::new(&mut inner);
         if fmt::Write::write_fmt(&mut w, args).is_ok() {
-            // SAFETY: as long as `Writer`'s safety requirements are satisfied:
-            // - `w.pointer` is aligned and valid for writes of `w.length` bytes.
-            unsafe { ptr::write_bytes(w.pointer, filler, w.length) }; // initialize remaining part with `filler`s
-            // SAFETY: ok because:
-            // - the entire array has been initialized with valid `&str`s and ASCII `filler`s
+            w.fill_and_finish(filler);
+            // SAFETY: ok because the entire array has been initialized with valid string slices and
+            // trailing ASCII filler bytes
             Ok(unsafe { Self::from_bytes_unchecked(inner.assume_init()) })
         } else {
-            // not dropping partially written data because:
-            const _STATIC_ASSERT: () = assert!(!mem::needs_drop::<u8>(), "u8 never needs drop");
             Err(fmt::Error)
         }
     }

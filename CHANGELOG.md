@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Minor refactoring and performance optimization.
+- Introduced the internal `UninitWriter` structure to refactor unsafe code to
+  write to uninitialized memory.
+- Other minor refactoring and performance optimization.
 
 ## v0.2.21 - 2026-05-19
 
