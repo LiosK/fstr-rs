@@ -230,16 +230,17 @@ impl<const N: usize> FStr<N> {
 
         let len = if s.len() <= N {
             s.len()
-        } else if is_utf8_char_boundary(s.as_bytes()[N]) {
-            N
-        } else if is_utf8_char_boundary(s.as_bytes()[N - 1]) {
-            N - 1
-        } else if is_utf8_char_boundary(s.as_bytes()[N - 2]) {
-            N - 2
-        } else if is_utf8_char_boundary(s.as_bytes()[N - 3]) {
-            N - 3
         } else {
-            unreachable!() // invalid UTF-8 sequence (a UTF-8 character is at most 4 bytes long)
+            let mut i = N;
+            while i > N.saturating_sub(3) {
+                if is_utf8_char_boundary(s.as_bytes()[i]) {
+                    break;
+                }
+                i -= 1;
+            }
+            // a UTF-8 character is at most 4 bytes long
+            debug_assert!(is_utf8_char_boundary(s.as_bytes()[i]));
+            i
         };
 
         let mut inner = mem::MaybeUninit::<[u8; N]>::uninit();
