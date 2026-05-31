@@ -229,21 +229,7 @@ impl<const N: usize> FStr<N> {
     #[track_caller]
     pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
-
-        let len = if s.len() <= N {
-            s.len()
-        } else {
-            let mut i = N;
-            while i > N.saturating_sub(3) {
-                if is_utf8_char_boundary(s.as_bytes()[i]) {
-                    break;
-                }
-                i -= 1;
-            }
-            // a UTF-8 character is at most 4 bytes long
-            debug_assert!(is_utf8_char_boundary(s.as_bytes()[i]));
-            i
-        };
+        let len = floor_char_boundary(s, N);
 
         let mut inner = mem::MaybeUninit::<[u8; N]>::uninit();
         let mut w = util::UninitWriter::new(&mut inner);
@@ -795,9 +781,31 @@ impl error::Error for FromSliceError {
     }
 }
 
-#[inline(always)]
-const fn is_utf8_char_boundary(byte: u8) -> bool {
-    (byte as i8) >= -0x40 // test continuation byte (`0b10xx_xxxx`)
+/// Equivalent to std's `floor_char_boundary()`, optimized for `index` known at compile time.
+#[inline]
+const fn floor_char_boundary(s: &str, index: usize) -> usize {
+    #[inline(always)]
+    const fn is_utf8_char_boundary(byte: u8) -> bool {
+        (byte as i8) >= -0x40 // test continuation byte (`0b10xx_xxxx`)
+    }
+
+    if index >= s.len() {
+        s.len()
+    } else {
+        let mut i = index;
+        if i > 0 && !is_utf8_char_boundary(s.as_bytes()[i]) {
+            i -= 1;
+            if i > 0 && !is_utf8_char_boundary(s.as_bytes()[i]) {
+                i -= 1;
+                if i > 0 && !is_utf8_char_boundary(s.as_bytes()[i]) {
+                    i -= 1;
+                    // a UTF-8 character is at most 4 bytes long
+                    debug_assert!(is_utf8_char_boundary(s.as_bytes()[i]));
+                }
+            }
+        }
+        i
+    }
 }
 
 #[cfg(feature = "alloc")]
