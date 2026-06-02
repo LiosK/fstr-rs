@@ -797,7 +797,9 @@ const fn floor_char_boundary(s: &str, index: usize) -> usize {
             i -= 1;
             if i > 0 && !is_utf8_char_boundary(s.as_bytes()[i]) {
                 i -= 1;
-                if i > 0 && !is_utf8_char_boundary(s.as_bytes()[i]) {
+                if !is_utf8_char_boundary(s.as_bytes()[i]) {
+                    // `&s[0]` will always be a char boundary with valid UTF-8
+                    debug_assert!(i > 0);
                     i -= 1;
                     // a UTF-8 character is at most 4 bytes long
                     debug_assert!(is_utf8_char_boundary(s.as_bytes()[i]));
