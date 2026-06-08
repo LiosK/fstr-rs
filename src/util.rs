@@ -16,6 +16,7 @@ pub struct UninitWriter<'a> {
 
 impl<'a> UninitWriter<'a> {
     /// Creates a new instance from a mutable reference to an uninitialized buffer.
+    #[inline]
     pub const fn new<const N: usize>(buffer: &'a mut mem::MaybeUninit<[u8; N]>) -> Self {
         Self {
             pointer: buffer.as_mut_ptr().cast::<u8>(),
@@ -25,6 +26,7 @@ impl<'a> UninitWriter<'a> {
     }
 
     /// Fills the remaining capacity with `filler`, consuming the writer to prevent further writes.
+    #[inline]
     pub const fn fill_and_finish(self, filler: u8) {
         // SAFETY: ok because the struct invariants guarantee that `pointer` is valid for the write
         unsafe { ptr::write_bytes(self.pointer, filler, self.capacity) };
@@ -45,6 +47,7 @@ impl<'a> UninitWriter<'a> {
     /// # Safety
     ///
     /// `bytes` must not be longer than the remaining capacity of the writer.
+    #[inline]
     const unsafe fn write_unchecked(&mut self, bytes: &[u8]) {
         // SAFETY: ok because:
         // - The caller guarantees that `bytes` fit in the remaining capacity.
@@ -76,7 +79,7 @@ impl fmt::Write for UninitWriter<'_> {
 /// Equivalent to std's `floor_char_boundary()`.
 #[inline]
 const fn floor_char_boundary(s: &str, index: usize) -> usize {
-    #[inline(always)]
+    #[inline]
     const fn is_utf8_char_boundary(byte: u8) -> bool {
         (byte as i8) >= -0x40 // test continuation byte (`0b10xx_xxxx`)
     }
