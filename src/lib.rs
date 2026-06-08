@@ -87,7 +87,7 @@ extern crate alloc;
 
 mod util;
 
-use core::{borrow, error, fmt, hash, mem, ops, slice, str};
+use core::{borrow, error, fmt, hash, mem, ops, str};
 
 /// A stack-allocated fixed-length string type.
 ///
@@ -229,13 +229,9 @@ impl<const N: usize> FStr<N> {
     #[track_caller]
     pub const fn from_str_lossy(s: &str, filler: u8) -> Self {
         assert!(filler.is_ascii(), "filler byte must represent ASCII char");
-        let len = floor_char_boundary(s, N);
-
         let mut inner = mem::MaybeUninit::<[u8; N]>::uninit();
         let mut w = util::UninitWriter::new(&mut inner);
-        // SAFETY: ok because the above logic guarantees `len <= s.len()` and `len <= N`
-        debug_assert!(len <= s.len() && len <= N);
-        unsafe { w.write_unchecked(slice::from_raw_parts(s.as_ptr(), len)) };
+        w.write_str_truncated(s);
         w.fill_and_finish(filler);
 
         // SAFETY: ok because the entire array has been initialized with a valid string slice `s`
@@ -778,35 +774,6 @@ impl error::Error for FromSliceError {
             FromSliceErrorKind::Length(source) => Some(source),
             FromSliceErrorKind::Utf8(source) => Some(source),
         }
-    }
-}
-
-/// Equivalent to std's `floor_char_boundary()`, optimized for `index` known at compile time.
-#[inline]
-const fn floor_char_boundary(s: &str, index: usize) -> usize {
-    #[inline(always)]
-    const fn is_utf8_char_boundary(byte: u8) -> bool {
-        (byte as i8) >= -0x40 // test continuation byte (`0b10xx_xxxx`)
-    }
-
-    if index >= s.len() {
-        s.len()
-    } else {
-        let mut i = index;
-        if i > 0 && !is_utf8_char_boundary(s.as_bytes()[i]) {
-            i -= 1;
-            if i > 0 && !is_utf8_char_boundary(s.as_bytes()[i]) {
-                i -= 1;
-                if !is_utf8_char_boundary(s.as_bytes()[i]) {
-                    // `&s[0]` will always be a char boundary with valid UTF-8
-                    debug_assert!(i > 0);
-                    i -= 1;
-                    // a UTF-8 character is at most 4 bytes long
-                    debug_assert!(is_utf8_char_boundary(s.as_bytes()[i]));
-                }
-            }
-        }
-        i
     }
 }
 

@@ -1,4 +1,4 @@
-use core::{fmt, marker, mem, ptr, str};
+use core::{fmt, marker, mem, ptr, slice, str};
 
 // do not drop partially written data because:
 const _STATIC_ASSERT: () = assert!(!mem::needs_drop::<u8>(), "u8 never needs drop");
@@ -30,12 +30,22 @@ impl<'a> UninitWriter<'a> {
         unsafe { ptr::write_bytes(self.pointer, filler, self.capacity) };
     }
 
+    /// Writes as much of `s` as fits, stopping at the last valid character boundary and returning
+    /// the number of bytes written.
+    #[inline]
+    pub const fn write_str_truncated(&mut self, s: &str) -> usize {
+        let len = floor_char_boundary(s, self.capacity);
+        // SAFETY: ok because `len <= s.len()` and `len <= self.capacity`
+        unsafe { self.write_unchecked(slice::from_raw_parts(s.as_ptr(), len)) };
+        len
+    }
+
     /// Writes bytes to the uninitialized memory without checking bounds.
     ///
     /// # Safety
     ///
     /// `bytes` must not be longer than the remaining capacity of the writer.
-    pub const unsafe fn write_unchecked(&mut self, bytes: &[u8]) {
+    const unsafe fn write_unchecked(&mut self, bytes: &[u8]) {
         // SAFETY: ok because:
         // - The caller guarantees that `bytes` fit in the remaining capacity.
         // - The struct invariants guarantee that `pointer` is valid for the write.
@@ -60,5 +70,34 @@ impl fmt::Write for UninitWriter<'_> {
         } else {
             Err(fmt::Error)
         }
+    }
+}
+
+/// Equivalent to std's `floor_char_boundary()`.
+#[inline]
+const fn floor_char_boundary(s: &str, index: usize) -> usize {
+    #[inline(always)]
+    const fn is_utf8_char_boundary(byte: u8) -> bool {
+        (byte as i8) >= -0x40 // test continuation byte (`0b10xx_xxxx`)
+    }
+
+    if index >= s.len() {
+        s.len()
+    } else {
+        let mut i = index;
+        if i > 0 && !is_utf8_char_boundary(s.as_bytes()[i]) {
+            i -= 1;
+            if i > 0 && !is_utf8_char_boundary(s.as_bytes()[i]) {
+                i -= 1;
+                if !is_utf8_char_boundary(s.as_bytes()[i]) {
+                    // `&s[0]` will always be a char boundary with valid UTF-8
+                    debug_assert!(i > 0);
+                    i -= 1;
+                    // a UTF-8 character is at most 4 bytes long
+                    debug_assert!(is_utf8_char_boundary(s.as_bytes()[i]));
+                }
+            }
+        }
+        i
     }
 }
