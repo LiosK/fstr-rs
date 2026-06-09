@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.2.22 - 2026-06-08
 
 - Introduced the internal `UninitWriter` structure to refactor unsafe code to
   write to uninitialized memory.
